@@ -1,5 +1,6 @@
 package com.stoufexis.lib.kafka
 
+import cats.implicits._
 import cats.Show
 import com.stoufexis.lib.kafka.ProjectedPartitioner.IllegalSourcePartition
 import org.apache.kafka.common.utils.Bytes
@@ -17,26 +18,26 @@ case class ProjectedPartitioner(
   def getPartitionForProjectedTopic(key: Bytes): Int =
     hashKey(key, projectedTopicPartitions)
 
+  /** Does not check if input is a valid partition
+   */
+  def projectUnsafe(sourcePartition: Int): List[Int] = {
+    def f(x: Int): Int =
+      (sourcePartition + x * sourceTopicPartitions) % projectedTopicPartitions
+
+    List.iterate(0, projectedPartitionsPerSourcePartitionsCnt)(f)
+  }
+
   def project(
     sourcePartition: Int
   ): Either[IllegalSourcePartition, List[Int]] =
     Either.cond(
       test  = sourcePartition <= sourceTopicPartitions,
-      right =
-        LazyList
-          .range(0, projectedPartitionsPerSourcePartitionsCnt)
-          .map { x =>
-            (sourcePartition + x * sourceTopicPartitions) % projectedTopicPartitions
-          }
-          .toList,
+      right = projectUnsafe(sourcePartition),
       left  = IllegalSourcePartition(sourcePartition, sourceTopicPartitions)
     )
 
-  def project(sourcePartitions: List[Int]): Either[IllegalSourcePartition, List[Int]] = {
-    import cats.implicits._
-
+  def project(sourcePartitions: List[Int]): Either[IllegalSourcePartition, List[Int]] =
     sourcePartitions.flatTraverse(project)
-  }
 }
 
 object ProjectedPartitioner {

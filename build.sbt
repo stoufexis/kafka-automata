@@ -55,10 +55,6 @@ lazy val log =
     "org.typelevel" %% "log4cats-slf4j" % "2.6.0"
   )
 
-lazy val newtype = Seq("io.estatico" %% "newtype" % "0.4.4")
-
-lazy val fuuid = Seq("io.chrisdavenport" %% "fuuid" % "0.8.0-M1")
-
 lazy val testdeps =
   Seq(
     "com.disneystreaming" %% "weaver-cats"       % "0.8.4",
@@ -71,13 +67,6 @@ lazy val config =
     "com.github.pureconfig" %% "pureconfig-cats-effect" % "0.17.6"
   )
 
-lazy val circe =
-  Seq(
-    "io.circe" %% "circe-core"    % "0.14.7",
-    "io.circe" %% "circe-generic" % "0.14.7",
-    "io.circe" %% "circe-parser"  % "0.14.7"
-  )
-
 lazy val kittens = Seq("org.typelevel" %% "kittens" % "3.3.0")
 
 lazy val lib =
@@ -87,10 +76,7 @@ lazy val lib =
         kafka ++
           effect ++
           log ++
-          newtype ++
-          fuuid ++
           config ++
-          circe ++
           kittens ++
           testdeps
     )

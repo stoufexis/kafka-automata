@@ -1,7 +1,5 @@
 package com.stoufexis.lib
 
-import io.estatico.newtype.Coercible
-import io.chrisdavenport.fuuid.FUUID
 import org.apache.kafka.common.utils.{Bytes, Utils}
 
 import java.nio.ByteBuffer
@@ -17,7 +15,4 @@ package object kafka {
     bb.putLong(uuid.getLeastSignificantBits());
     Bytes.wrap(bb.array())
   }
-
-  def idToBytes[I](id: I)(implicit coerce: Coercible[I, FUUID]) =
-    uuidToBytes(FUUID.Unsafe.toUUID(coerce(id)))
 }
