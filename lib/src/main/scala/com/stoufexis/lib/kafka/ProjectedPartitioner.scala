@@ -18,9 +18,7 @@ case class ProjectedPartitioner(
   def getPartitionForProjectedTopic(key: Bytes): Int =
     hashKey(key, projectedTopicPartitions)
 
-  /** Does not check if input is a valid partition
-   */
-  def projectUnsafe(sourcePartition: Int): List[Int] = {
+  private def projectUnchecked(sourcePartition: Int): List[Int] = {
     def f(x: Int): Int =
       (sourcePartition + x * sourceTopicPartitions) % projectedTopicPartitions
 
@@ -32,12 +30,21 @@ case class ProjectedPartitioner(
   ): Either[IllegalSourcePartition, List[Int]] =
     Either.cond(
       test  = sourcePartition <= sourceTopicPartitions,
-      right = projectUnsafe(sourcePartition),
+      right = projectUnchecked(sourcePartition),
       left  = IllegalSourcePartition(sourcePartition, sourceTopicPartitions)
     )
 
   def project(sourcePartitions: List[Int]): Either[IllegalSourcePartition, List[Int]] =
     sourcePartitions.flatTraverse(project)
+
+  def projectUnsafe(sourcePartition: Int): List[Int] =
+    project(sourcePartition) match {
+      case Right(p) => p
+      case Left(t)  => throw t
+    }
+
+  def projectUnsafe(sourcePartitions: List[Int]): List[Int] =
+    sourcePartitions.flatMap(projectUnsafe)
 }
 
 object ProjectedPartitioner {
