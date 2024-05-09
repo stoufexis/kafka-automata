@@ -78,7 +78,10 @@ lazy val lib =
           log ++
           config ++
           kittens ++
-          testdeps
+          testdeps,
+      addCompilerPlugin(
+        "org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full
+      )
     )
 
 lazy val root =

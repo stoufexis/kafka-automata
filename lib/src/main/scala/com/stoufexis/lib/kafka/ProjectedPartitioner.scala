@@ -1,7 +1,7 @@
 package com.stoufexis.lib.kafka
 
-import cats.implicits._
 import cats.Show
+import cats.implicits._
 import com.stoufexis.lib.kafka.ProjectedPartitioner.IllegalSourcePartition
 import org.apache.kafka.common.utils.Bytes
 
@@ -34,7 +34,9 @@ case class ProjectedPartitioner(
       left  = IllegalSourcePartition(sourcePartition, sourceTopicPartitions)
     )
 
-  def project(sourcePartitions: List[Int]): Either[IllegalSourcePartition, List[Int]] =
+  def project(
+    sourcePartitions: List[Int]
+  ): Either[IllegalSourcePartition, List[Int]] =
     sourcePartitions.flatTraverse(project)
 
   def projectUnsafe(sourcePartition: Int): List[Int] =
@@ -56,5 +58,6 @@ object ProjectedPartitioner {
       s"Input source partition ${sourcePartition} greater than expected max ${sourceTopicMaxPartitions}."
   }
 
-  implicit val showPP: Show[ProjectedPartitioner] = cats.derived.semiauto.show
+  implicit val showPP: Show[ProjectedPartitioner] =
+    cats.derived.semiauto.show
 }
