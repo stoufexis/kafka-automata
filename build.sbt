@@ -4,35 +4,35 @@ ThisBuild / scalaVersion     := "2.13.12"
 ThisBuild / version          := "0.1.0-SNAPSHOT"
 ThisBuild / organization     := "com.stoufexis"
 ThisBuild / organizationName := "stoufexis"
-ThisBuild / scalacOptions    := Seq(
-  "-deprecation",                  // Emit warning and location for usages of deprecated APIs.
+ThisBuild / scalacOptions := Seq(
+  "-deprecation", // Emit warning and location for usages of deprecated APIs.
   "-encoding",
-  "utf-8",                         // Specify character encoding used by source files.
-  "-explaintypes",                 // Explain type errors in more detail.
-  "-feature",                      // Emit warning and location for usages of features that should be imported explicitly.
-  "-language:existentials",        // Existential types (besides wildcard types) can be written and inferred
+  "utf-8",         // Specify character encoding used by source files.
+  "-explaintypes", // Explain type errors in more detail.
+  "-feature", // Emit warning and location for usages of features that should be imported explicitly.
+  "-language:existentials", // Existential types (besides wildcard types) can be written and inferred
   "-language:experimental.macros", // Allow macro definition (besides implementation and application). Disabled, as this will significantly change in Scala 3
   "-language:higherKinds",         // Allow higher-kinded types
   "-language:implicitConversions", // for newtypes
-  "-unchecked",                    // Enable additional warnings where generated code depends on assumptions.
-  "-Xcheckinit",                   // Wrap field accessors to throw an exception on uninitialized access.
-  "-Xlint:constant",               // Evaluation of a constant arithmetic expression results in an error.
-  "-Xlint:inaccessible",           // Warn about inaccessible types in method signatures.
-  "-Xlint:unused",                 // TODO check if we still need -Wunused below
-  "-Xlint:deprecation",            // Enable linted deprecations.
-  "-Wdead-code",                   // Warn when dead code is identified.
-  "-Wmacros:both",                 // Lints code before and after applying a macro
-  "-Wnumeric-widen",               // Warn when numerics are widened.
-  "-Xlint:implicit-recursion",     // Warn when an implicit resolves to an enclosing self-definition.
-  "-Wunused:imports",              // Warn if an import selector is not referenced.
-  "-Wunused:patvars",              // Warn if a variable bound in a pattern is unused.
-  "-Wunused:privates",             // Warn if a private member is unused.
-  "-Wunused:locals",               // Warn if a local definition is unused.
-  "-Wunused:explicits",            // Warn if an explicit parameter is unused.
-  "-Wunused:implicits",            // Warn if an implicit parameter is unused.
-  "-Wunused:params",               // Enable -Wunused:explicits,implicits.
+  "-unchecked",      // Enable additional warnings where generated code depends on assumptions.
+  "-Xcheckinit",     // Wrap field accessors to throw an exception on uninitialized access.
+  "-Xlint:constant", // Evaluation of a constant arithmetic expression results in an error.
+  "-Xlint:inaccessible", // Warn about inaccessible types in method signatures.
+  "-Xlint:unused",       // TODO check if we still need -Wunused below
+  "-Xlint:deprecation",  // Enable linted deprecations.
+  "-Wdead-code",         // Warn when dead code is identified.
+  "-Wmacros:both",       // Lints code before and after applying a macro
+  "-Wnumeric-widen",     // Warn when numerics are widened.
+  "-Xlint:implicit-recursion", // Warn when an implicit resolves to an enclosing self-definition.
+  "-Wunused:imports",   // Warn if an import selector is not referenced.
+  "-Wunused:patvars",   // Warn if a variable bound in a pattern is unused.
+  "-Wunused:privates",  // Warn if a private member is unused.
+  "-Wunused:locals",    // Warn if a local definition is unused.
+  "-Wunused:explicits", // Warn if an explicit parameter is unused.
+  "-Wunused:implicits", // Warn if an implicit parameter is unused.
+  "-Wunused:params",    // Enable -Wunused:explicits,implicits.
   "-Wunused:linted",
-  "-Wvalue-discard",               // Warn when non-Unit expression results are unused.
+  "-Wvalue-discard", // Warn when non-Unit expression results are unused.
   "-Ymacro-annotations"
 )
 
@@ -81,7 +81,8 @@ lazy val lib =
           testdeps,
       addCompilerPlugin(
         "org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full
-      )
+      ),
+      addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
     )
 
 lazy val root =

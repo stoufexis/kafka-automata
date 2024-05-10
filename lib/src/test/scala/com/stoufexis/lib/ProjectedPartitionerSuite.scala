@@ -25,12 +25,20 @@ object ProjectedPartitionerSuite extends SimpleIOSuite with Checkers {
 
     forall(partitioners) { p =>
       forall(genUUID) { uuid =>
-        val src = p.getPartitionForSourceTopic(uuidToBytes(uuid))
-        val prj = p.getPartitionForProjectedTopic(uuidToBytes(uuid))
+        forall(Gen.choose(0, 100)) { inPartition =>
+          val prj: Int =
+            p.getPartitionForProjectedTopic(inPartition, uuidToBytes(uuid))
 
-        exists(p.project(src)) { ps =>
-          expect(ps contains prj)
-          expect(ps.length == p.projectedPartitionsPerSourcePartitionsCnt)
+          // Given projected partition is a valid partition for the topic
+          expect(0 <= prj && prj < p.projectedTopicPartitions)
+
+          val candidates: Vector[Int] = p.project(inPartition)
+
+          expect(candidates contains prj)
+
+          expect(
+            candidates.length == p.projectedPartitionsPerSourcePartitionsCnt
+          )
         }
       }
     }
