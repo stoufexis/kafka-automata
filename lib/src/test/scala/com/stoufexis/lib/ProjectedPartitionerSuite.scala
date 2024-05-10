@@ -1,12 +1,13 @@
 package com.stoufexis.lib
 
 import cats.Show
-import com.stoufexis.lib.kafka._
 import org.scalacheck.Gen
 import weaver._
 import weaver.scalacheck._
 
 import java.util.UUID
+import com.stoufexis.lib.sink.ProjectedPartitioner
+import com.stoufexis.lib.util._
 
 object ProjectedPartitionerSuite extends SimpleIOSuite with Checkers {
   implicit val showBytes: Show[UUID] =

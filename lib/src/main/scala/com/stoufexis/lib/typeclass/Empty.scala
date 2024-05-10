@@ -7,6 +7,8 @@ trait Empty[A] {
 }
 
 object Empty {
+  implicit def apply[A: Empty]: Empty[A] = implicitly
+
   implicit def emptyFromMonoid[A: Monoid]: Empty[A] =
     new Empty[A] {
       override val empty: A = Monoid[A].empty
