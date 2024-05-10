@@ -13,53 +13,25 @@ import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
 
 object Runner {
-  def statefulTopicToTopic[F[_], Key, Input, Output, State: Empty](
-    consumer: Stream[F, NewlyAssignedPartitions[F, Key, Input]],
-    snapshot: Snapshot[F, Key, State],
-    fsm:      FSM[F, State, Input, Output]
-  )(implicit
-    @unused ev1: Parallel.Aux[F, F],
-    @unused ev2: CommutativeApplicative[F],
-  ): Stream[F, Stream[F, (Chunk[(Key, Output)], CommittableOffsetBatch[F])]] = {
+  // def statefulTopicToTopic[F[_], Key, Input, Output, State: Empty](
+  //   consumer: Stream[F, AssignedPartitions[F, Key, Input]],
+  //   snapshot: Snapshot[F, Key, State],
+  //   fsm:      FSM[F, State, Input, Output]
+  // ): Stream[F, Stream[F, (Chunk[(Key, Output)], CommittableOffsetBatch[F])]] = {
 
-    for {
-      partitionMap: NewlyAssignedPartitions[F, Key, Input] <-
-        consumer
+  //   for {
+  //     partitionMap: AssignedPartitions[F, Key, Input] <-
+  //       consumer
 
-      (partitions: Vector[Int], partitionStreams: Vector[PartitionStream[F, Key, Input]]) =
-        partitionMap.unzip
+  //     (partitions: Vector[Int], partitionStreams: Vector[PartitionStream[F, Key, Input]]) =
+  //       partitionMap.partitions
 
-      statesForPartitions: Map[Key, State] <-
-        Stream.eval(snapshot.latest(partitions))
+  //     statesForPartitions: Map[Key, State] <-
+  //       Stream.eval(snapshot.latest(partitions))
 
-      partitionStream <-
-        Stream.iterable(partitionStreams)
+  //     partitionStream <-
+  //       Stream.iterable(partitionStreams)
 
-    } yield partitionStream.process(statesForPartitions, fsm.raw)
-  }
-
-  def streamTopic[
-    F[_]: Async,
-    K:    Deserializer[F, *],
-    V:    Deserializer[F, *]
-  ](
-    topicName:    String,
-    kafkaServers: String,
-    groupId:      String,
-    pollInterval: FiniteDuration
-  ): Stream[F, NewlyAssignedPartitions[F, K, V]] = {
-    val settings: ConsumerSettings[F, K, V] =
-      ConsumerSettings[F, K, V]
-        .withAutoOffsetReset(AutoOffsetReset.Earliest)
-        .withIsolationLevel(IsolationLevel.ReadCommitted)
-        .withBootstrapServers(kafkaServers)
-        .withGroupId(groupId)
-        .withPollInterval(pollInterval)
-
-    KafkaConsumer
-      .stream(settings)
-      .subscribeTo(topicName)
-      .flatMap(_.partitionsMapStream)
-      .map(NewlyAssignedPartitions(pollInterval, _))
-  }
+  //   } yield partitionStream.process(statesForPartitions, fsm.raw)
+  // }
 }
