@@ -1,8 +1,7 @@
-package com.stoufexis.lib.kafka
+package com.stoufexis.lib.sink
 
 import cats.Show
 import cats.implicits._
-import com.stoufexis.lib.kafka.hashKey
 import org.apache.kafka.common.utils.Bytes
 
 case class ProjectedPartitioner(
