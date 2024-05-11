@@ -23,7 +23,7 @@ case class AssignedPartitions[F[_], Key, Value](
     snapshot: Snapshot[F, Key, State],
     topicOut: String,
     f:        (State, Chunk[Value]) => F[(State, Chunk[Out])]
-  ): Stream[F, Stream[F, (Chunk[(Key, Out)], CommittableOffsetBatch[F])]] =
+  ): Stream[F, Stream[F, CommittableProducerRecords[F, Key, Out]]] =
     for {
       statesForPartitions: Map[Key, State] <-
         Stream.eval(snapshot.latest(partitions))
@@ -32,11 +32,11 @@ case class AssignedPartitions[F[_], Key, Value](
         Stream.iterable(partitionStreams)
 
     } yield partitionStream.process(statesForPartitions, f).map {
-      case (chunk, offsets) =>
+      case (chunk, offset) =>
         val records: Chunk[ProducerRecord[Key,Out]] =
           chunk.map { case (key, out) => ProducerRecord(topicOut, key, out) }
 
-        CommittableProducerRecords(records, offsets)
+        CommittableProducerRecords(records, offset)
     }
 
 }

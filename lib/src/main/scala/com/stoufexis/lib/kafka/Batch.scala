@@ -9,18 +9,18 @@ import fs2.kafka._
 import scala.collection.mutable
 
 case class Batch[F[_]: Concurrent, K, V](
-  chunks:  List[(K, Chunk[V])],
-  offsets: CommittableOffsetBatch[F]
+  chunks:  List[(K, Chunk[V])]
 ){
 
   /** The chunks corresponding to different keys can be processed in parallel. This does not
     * preserve the order of the output. Each Key is supposed to represent an independent
     * "session" of the state machine, so no cross-key relationship is assumed or guaranteed.
     */
-  def parProcess[Out](f: (K, Chunk[V]) => F[Out]): F[List[(K, Out)]] =
-    chunks.parUnorderedTraverse { case (k, chunk) =>
-      f(k, chunk) map ((k, _))
-    }
+  def parProcess[Out](f: (K, Chunk[V]) => F[Out]): F[(List[(K, Out)], CommittableOffset[F])] =
+    ???
+    // chunks.parUnorderedTraverse { case (k, chunk) =>
+    //   f(k, chunk) map ((k, _))
+    // }
 }
 
 object Batch {
@@ -52,6 +52,7 @@ object Batch {
     val recordsBatch: List[(Key, Chunk[Value])] =
       recordsBatchMut.view.map { case (k, v) => (k, Chunk.from(v)) }.toList
 
-    Batch(recordsBatch, offsetBatch)
+    // Batch(recordsBatch, offsetBatch)
+    ???
   }
 }

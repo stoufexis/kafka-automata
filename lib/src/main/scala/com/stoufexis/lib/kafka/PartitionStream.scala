@@ -21,14 +21,14 @@ case class PartitionStream[F[_]: Functor, Key, Value](
   def process[State: Empty, Out](
     init: Map[Key, State],
     f:    (State, Chunk[Value]) => F[(State, Chunk[Out])]
-  ): Stream[F, (Chunk[(Key, Out)], CommittableOffsetBatch[F])] =
+  ): Stream[F, (Chunk[(Key, Out)], CommittableOffset[F])] =
     stream.evalMapAccumulate(init) {
       (states: Map[Key, State], batch: Batch[F, Key, Value]) =>
         batch
           .parProcess { (key, inputs) =>
             f(states.getOrElse(key, Empty[State].empty), inputs)
           }
-          .map { list: List[(Key, (State, Chunk[Out]))] =>
+          .map { case (list: List[(Key, (State, Chunk[Out]))], offset: CommittableOffset[F]) =>
             val view: SeqView[(Key, (State, Chunk[Out]))] =
               list.view
 
@@ -38,7 +38,7 @@ case class PartitionStream[F[_]: Functor, Key, Value](
             val outputs =
               Chunk.concat(view.map { case (key, (_, o)) => o.map((key, _)) }.toList)
 
-            (states ++ newStates, (outputs, batch.offsets))
+            (states ++ newStates, (outputs, offset))
           }
     }.map(_._2)
 }
