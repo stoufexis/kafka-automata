@@ -3,12 +3,12 @@ package com.stoufexis.lib.consumer
 import cats.effect._
 import cats.effect.implicits._
 import cats.implicits._
+import com.stoufexis.lib.util.chunkToMap
 import fs2._
 import fs2.kafka._
-import com.stoufexis.lib.util.chunkToMap
 
 trait Batch[F[_], Key, Value] {
-  def process[Out](f: (Key, Chunk[Value]) => F[Out]): F[ProcessedBatch[F, Key, Out]]
+  def process[Out](f: (Key, Chunk[Value]) => F[Out]): F[(Map[Key, Out], CommittableOffset[F])]
 }
 
 object Batch {
@@ -36,17 +36,15 @@ object Batch {
 
         // I don't like all the iterations that are necessary in this step
         // TODO: improve
-        override def process[Out](f: (K, Chunk[V]) => F[Out]): F[ProcessedBatch[F, K, Out]] =
+        override def process[Out](f: (K, Chunk[V]) => F[Out])
+          : F[(Map[K, Out], CommittableOffset[F])] =
           Chunk
             .from(records.fmap(Chunk.from))
             .parUnorderedTraverse {
-              case (k, vs) => f(k, vs) map ((k, _)) 
+              case (k, vs) => f(k, vs) map ((k, _))
             }
             .map { processedRecords =>
-              ProcessedBatch(
-                records = chunkToMap(processedRecords),
-                offset  = last.offset
-              )
+              (chunkToMap(processedRecords), last.offset)
             }
       }
 

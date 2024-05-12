@@ -4,12 +4,13 @@ import cats.Functor
 import cats.effect._
 import cats.implicits._
 import com.stoufexis.lib.typeclass.Empty
-import com.stoufexis.lib.util.chunkToMap
 import fs2._
 import fs2.kafka.CommittableConsumerRecord
+import fs2.kafka.CommittableOffset
 import fs2.kafka.consumer._
 import org.apache.kafka.common.TopicPartition
 import scala.concurrent.duration.FiniteDuration
+import fs2.kafka.KafkaConsumer
 
 trait PartitionStream[F[_], Key, Value] {
   val topicPartition: TopicPartition
@@ -17,7 +18,7 @@ trait PartitionStream[F[_], Key, Value] {
   def process[State: Empty, Out](
     init: Map[Key, State],
     f:    (State, Chunk[Value]) => F[(State, Chunk[Out])]
-  ): Stream[F, (Map[Key, State], ProcessedBatch[F, Key, Out])]
+  ): Stream[F, ProcessedBatch[F, Key, State, Out]]
 
 }
 
@@ -52,18 +53,19 @@ object PartitionStream {
       override def process[State: Empty, Out](
         init: Map[K, State],
         f:    (State, Chunk[V]) => F[(State, Chunk[Out])]
-      ): Stream[F, (Map[K, State], ProcessedBatch[F, K, Out])] =
+      ): Stream[F, ProcessedBatch[F, K, State, Out]] =
         batches.evalMapAccumulate(init) { (states, batch) =>
           batch
             .process { case (key, inputs) =>
               f(states.getOrElse(key, Empty[State].empty), inputs)
             }
-            .map { processed: ProcessedBatch[F, K, (State, Chunk[Out])] =>
-              val (newStates, out) =
-                processed.split(identity)
+            .map {
+              case (processed: Map[K, (State, Chunk[Out])], offset: CommittableOffset[F]) =>
+                val outBatch: ProcessedBatch[F,K,State,Out] =
+                  ProcessedBatch(processed, offset)
 
-              (states ++ chunkToMap(newStates), out.compact)
+                (states ++ outBatch.statesMap, outBatch)
             }
-        }
+        }.map(_._2)
     }
 }
