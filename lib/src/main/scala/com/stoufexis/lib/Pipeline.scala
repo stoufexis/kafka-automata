@@ -14,7 +14,7 @@ trait Pipeline[F[_], Key, State, In, Out] {
 
 object Pipeline {
   def apply[F[_]: Concurrent, Key, State: Empty, In, Out](
-    partitionStreams: Stream[F, (TopicPartition, PartitionStream[F, Key, In])],
+    partitionStreams: Stream[F, PartitionStream[F, Key, In]],
     snapshot:         Snapshot[F, Key, State],
     sink:             Sink[F, Key, State, Out]
   ): Pipeline[F, Key, State, In, Out] =
@@ -23,8 +23,11 @@ object Pipeline {
         f: (State, Chunk[In]) => F[(State, Chunk[Out])]
       ): Stream[F, Unit] = {
         for {
-          (topicPartition: TopicPartition, stream: PartitionStream[F, Key, In]) <-
+          stream: PartitionStream[F, Key, In] <-
             partitionStreams
+
+          topicPartition: TopicPartition =
+            stream.topicPartition
 
           statesForPartitions: Map[Key, State] <-
             Stream.eval(snapshot.latest(topicPartition.partition))

@@ -44,7 +44,7 @@ object Batch {
             }
             .map { processedRecords =>
               ProcessedBatch(
-                records = chunkToMap(processedRecords, (x: (K, Out)) => x),
+                records = chunkToMap(processedRecords),
                 offset  = last.offset
               )
             }
