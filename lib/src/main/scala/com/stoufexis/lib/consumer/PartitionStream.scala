@@ -3,16 +3,15 @@ package com.stoufexis.lib.consumer
 import cats.Functor
 import cats.effect._
 import cats.implicits._
+import com.stoufexis.lib.config.ConsumerConfig
 import com.stoufexis.lib.typeclass.Empty
 import fs2._
-import fs2.kafka.CommittableConsumerRecord
-import fs2.kafka.CommittableOffset
-import fs2.kafka.consumer._
+import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
 import scala.concurrent.duration.FiniteDuration
-import fs2.kafka.KafkaConsumer
 
 trait PartitionStream[F[_], Key, Value] {
+
   val topicPartition: TopicPartition
 
   def process[State: Empty, Out](
@@ -23,23 +22,28 @@ trait PartitionStream[F[_], Key, Value] {
 }
 
 object PartitionStream {
-  def fromConsume[F[_]: Temporal, K, V](
-    consumer:   KafkaConsume[F, K, V],
-    batchEvery: FiniteDuration
+  def fromConsumer[F[_]: Temporal, K, V](
+    consumerConfig: ConsumerConfig[F, K, V],
+    topic:          String,
+    batchEvery:     FiniteDuration
   ): Stream[F, PartitionStream[F, K, V]] =
-    consumer.partitionsMapStream.flatMap {
-      partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] =>
-        Stream.iterable {
-          partitions.map { case (topicPartition, records) =>
-            val batches: Stream[F, Batch[F, K, V]] =
-              records
-                .groupWithin(Int.MaxValue, batchEvery)
-                .mapFilter(Batch(_))
+    for {
+      consumer: KafkaConsumer[F, K, V] <-
+        consumerConfig
+          .makeConsumer(topic, ConsumerConfig.Seek.None)
 
-            fromBatches(topicPartition, batches)
-          }
-        }
-    }
+      partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] <-
+        consumer.partitionsMapStream
+
+      (topicPartition, records) <-
+        Stream.iterable(partitions)
+
+      batches: Stream[F, Batch[F, K, V]] =
+        records
+          .groupWithin(Int.MaxValue, batchEvery)
+          .mapFilter(Batch(_))
+
+    } yield fromBatches(topicPartition, batches)
 
   def fromBatches[F[_]: Functor, K, V](
     partition: TopicPartition,
@@ -61,7 +65,7 @@ object PartitionStream {
             }
             .map {
               case (processed: Map[K, (State, Chunk[Out])], offset: CommittableOffset[F]) =>
-                val outBatch: ProcessedBatch[F,K,State,Out] =
+                val outBatch: ProcessedBatch[F, K, State, Out] =
                   ProcessedBatch(processed, offset)
 
                 (states ++ outBatch.statesMap, outBatch)
