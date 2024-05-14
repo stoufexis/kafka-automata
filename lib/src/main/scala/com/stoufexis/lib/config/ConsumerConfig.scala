@@ -17,8 +17,14 @@ case class ConsumerConfig[F[_]: Async, K, V](
   groupId:           Option[String],
   offsetReset:       AutoOffsetReset,
   keyDeserializer:   Deserializer[F, K],
-  valueDeserializer: Deserializer[F, V]
+  valueDeserializer: Deserializer[F, V],
 ) {
+  def makeConsumer(
+    topic: String,
+    seek:  Seek
+  ): Stream[F, KafkaConsumer[F, K, V]] =
+    makeConsumer(Left(topic), seek)
+
   def makeConsumer(
     topicPartition: TopicPartition,
     seek:           Seek
@@ -26,33 +32,31 @@ case class ConsumerConfig[F[_]: Async, K, V](
     makeConsumer(Right(NonEmptySet.one(topicPartition)), seek)
 
   def makeConsumer(
-    subscribeTo: Either[NonEmptySet[String], NonEmptySet[TopicPartition]],
+    subscribeTo: Either[String, NonEmptySet[TopicPartition]],
     seek:        Seek
   ): Stream[F, KafkaConsumer[F, K, V]] =
     for {
-      settings <-
+      gid: String <-
         Stream.eval {
-          groupId
-            .fold {
-              Async[F].delay(UUID.randomUUID).map(_.toString)
-            } { value =>
-              Async[F].pure(value)
-            }
-            .map { groupId =>
-              ConsumerSettings(keyDeserializer, valueDeserializer)
-                .withBootstrapServers(bootstrapServers)
-                .withGroupId(groupId)
-                .withAutoOffsetReset(offsetReset)
-                .withIsolationLevel(IsolationLevel.ReadCommitted)
-            }
+          groupId.fold {
+            Async[F].delay(UUID.randomUUID).map(_.toString)
+          } { value =>
+            Async[F].pure(value)
+          }
         }
 
-      consumer <-
-        KafkaConsumer.stream(settings)
+      consumer: KafkaConsumer[F, K, V] <-
+        KafkaConsumer.stream {
+          ConsumerSettings(keyDeserializer, valueDeserializer)
+            .withBootstrapServers(bootstrapServers)
+            .withGroupId(gid)
+            .withAutoOffsetReset(offsetReset)
+            .withIsolationLevel(IsolationLevel.ReadCommitted)
+        }
 
       _ <- Stream.eval {
         subscribeTo match {
-          case Left(topics)           => consumer.subscribe(topics)
+          case Left(topic)            => consumer.subscribeTo(topic)
           case Right(topicPartitions) => consumer.assign(topicPartitions)
         }
       }
