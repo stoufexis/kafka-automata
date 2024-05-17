@@ -24,13 +24,15 @@ trait PartitionStream[F[_], Key, Value] {
 object PartitionStream {
   def fromConsumer[F[_]: Temporal, K, V](
     consumerConfig: ConsumerConfig[F, K, V],
+    groupId:        String,
     topic:          String,
     batchEvery:     FiniteDuration
   ): Stream[F, PartitionStream[F, K, V]] =
     for {
+      // TODO: Log consumer creation
       consumer: KafkaConsumer[F, K, V] <-
         consumerConfig
-          .makeConsumer(topic, ConsumerConfig.Seek.None)
+          .makeConsumer(topic, Some(groupId), ConsumerConfig.Seek.None)
 
       partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] <-
         consumer.partitionsMapStream

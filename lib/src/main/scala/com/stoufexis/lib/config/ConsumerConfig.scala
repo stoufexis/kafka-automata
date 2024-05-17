@@ -14,25 +14,26 @@ import java.util.UUID
 
 case class ConsumerConfig[F[_]: Async, K, V](
   bootstrapServers:  String,
-  groupId:           Option[String],
-  offsetReset:       AutoOffsetReset,
   keyDeserializer:   Deserializer[F, K],
-  valueDeserializer: Deserializer[F, V],
+  valueDeserializer: Deserializer[F, V]
 ) {
   def makeConsumer(
-    topic: String,
-    seek:  Seek
+    topic:   String,
+    groupId: Option[String],
+    seek:    Seek
   ): Stream[F, KafkaConsumer[F, K, V]] =
-    makeConsumer(Left(topic), seek)
+    makeConsumer(Left(topic), groupId, seek)
 
   def makeConsumer(
     topicPartition: TopicPartition,
+    groupId:        Option[String],
     seek:           Seek
   ): Stream[F, KafkaConsumer[F, K, V]] =
-    makeConsumer(Right(NonEmptySet.one(topicPartition)), seek)
+    makeConsumer(Right(NonEmptySet.one(topicPartition)), groupId, seek)
 
   def makeConsumer(
     subscribeTo: Either[String, NonEmptySet[TopicPartition]],
+    groupId:     Option[String],
     seek:        Seek
   ): Stream[F, KafkaConsumer[F, K, V]] =
     for {
@@ -50,7 +51,7 @@ case class ConsumerConfig[F[_]: Async, K, V](
           ConsumerSettings(keyDeserializer, valueDeserializer)
             .withBootstrapServers(bootstrapServers)
             .withGroupId(gid)
-            .withAutoOffsetReset(offsetReset)
+            .withAutoOffsetReset(AutoOffsetReset.Earliest)
             .withIsolationLevel(IsolationLevel.ReadCommitted)
         }
 
@@ -68,6 +69,15 @@ case class ConsumerConfig[F[_]: Async, K, V](
 }
 
 object ConsumerConfig {
+  def apply[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
+    bootstrapServers: String
+  ): ConsumerConfig[F, K, V] =
+    ConsumerConfig(
+      bootstrapServers  = bootstrapServers,
+      keyDeserializer   = implicitly,
+      valueDeserializer = implicitly
+    )
+
   sealed trait Seek
   object Seek {
     case object ToEnd       extends Seek
