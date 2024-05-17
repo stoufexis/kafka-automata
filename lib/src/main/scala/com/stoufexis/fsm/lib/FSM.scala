@@ -1,4 +1,4 @@
-package com.stoufexis.lib.fsm
+package com.stoufexis.fsm.lib.fsm
 
 import cats.Monad
 import cats.implicits._

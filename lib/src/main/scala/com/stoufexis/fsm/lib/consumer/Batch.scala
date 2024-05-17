@@ -1,9 +1,9 @@
-package com.stoufexis.lib.consumer
+package com.stoufexis.fsm.lib.consumer
 
 import cats.effect._
 import cats.effect.implicits._
 import cats.implicits._
-import com.stoufexis.lib.util.chunkToMap
+import com.stoufexis.fsm.lib.util.chunkToMap
 import fs2._
 import fs2.kafka._
 

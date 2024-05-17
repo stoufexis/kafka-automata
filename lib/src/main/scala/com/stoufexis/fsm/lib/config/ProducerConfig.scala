@@ -1,4 +1,4 @@
-package com.stoufexis.lib.config
+package com.stoufexis.fsm.lib.config
 
 import cats.effect.kernel._
 import fs2.kafka._

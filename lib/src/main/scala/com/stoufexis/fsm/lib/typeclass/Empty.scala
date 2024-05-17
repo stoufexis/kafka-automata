@@ -1,4 +1,4 @@
-package com.stoufexis.lib.typeclass
+package com.stoufexis.fsm.lib.typeclass
 
 import cats.kernel.Monoid
 

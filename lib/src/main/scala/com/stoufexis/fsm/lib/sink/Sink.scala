@@ -1,10 +1,10 @@
-package com.stoufexis.lib.sink
+package com.stoufexis.fsm.lib.sink
 
 import cats.effect.kernel._
 import cats.implicits._
-import com.stoufexis.lib.config._
-import com.stoufexis.lib.consumer.ProcessedBatch
-import com.stoufexis.lib.sink.hashKey
+import com.stoufexis.fsm.lib.config._
+import com.stoufexis.fsm.lib.consumer.ProcessedBatch
+import com.stoufexis.fsm.lib.sink.hashKey
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
