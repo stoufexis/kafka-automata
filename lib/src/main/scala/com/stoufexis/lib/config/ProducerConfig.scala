@@ -5,24 +5,36 @@ import fs2.kafka._
 import scala.concurrent.duration.FiniteDuration
 
 case class ProducerConfig[F[_]: Async, K, V](
-  txId:             String,
   bootstrapServers: String,
-  idempotent:       Boolean,
   linger:           FiniteDuration,
   batchSize:        Int,
   keySerializer:    Serializer[F, K],
   valueSerializer:  Serializer[F, V]
 ) {
-  private val producerSettings: TransactionalProducerSettings[F, K, V] =
-    TransactionalProducerSettings(
-      txId,
-      ProducerSettings(keySerializer, valueSerializer)
-        .withBootstrapServers(bootstrapServers)
-        .withEnableIdempotence(idempotent)
-        .withLinger(linger)
-        .withBatchSize(batchSize)
+  def makeProducer(txId: String): Resource[F, TransactionalKafkaProducer[F, K, V]] =
+    TransactionalKafkaProducer.resource(
+      TransactionalProducerSettings(
+        txId,
+        ProducerSettings(keySerializer, valueSerializer)
+          .withBootstrapServers(bootstrapServers)
+          .withEnableIdempotence(true)
+          .withLinger(linger)
+          .withBatchSize(batchSize)
+      )
     )
+}
 
-  def makeProducer: Resource[F, TransactionalKafkaProducer[F, K, V]] =
-    TransactionalKafkaProducer.resource(producerSettings)
+object ProducerConfig {
+  def apply[F[_]: Async, K: Serializer[F, *], V: Serializer[F, *]](
+    bootstrapServers: String,
+    linger:           FiniteDuration,
+    batchSize:        Int
+  ): ProducerConfig[F, K, V] =
+    ProducerConfig(
+      bootstrapServers = bootstrapServers,
+      linger           = linger,
+      batchSize        = batchSize,
+      keySerializer    = implicitly,
+      valueSerializer  = implicitly
+    )
 }

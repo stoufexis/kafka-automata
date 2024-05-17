@@ -29,8 +29,8 @@ object Sink {
     * @param outTopic
     * @return
     */
-  def fromProducer[
-    F[_]: Async,
+  def fromKafka[
+    F[_]: Concurrent,
     K,
     S: Serializer[F, *],
     V: Serializer[F, *]
@@ -39,11 +39,11 @@ object Sink {
     consumeStateConfig:   ConsumerConfig[F, K, S],
     stateTopic:           String,
     stateTopicPartitions: Int,
-    outTopic:             V => String
+    topicOut:             V => String
   ): Sink[F, K, S, V] =
     new Sink[F, K, S, V] {
       override def forPartition(topicPartition: TopicPartition): Resource[F, ForPartition] =
-        producerConfig.makeProducer.map {
+        producerConfig.makeProducer(topicPartition.toString).map {
           producer: TransactionalKafkaProducer[F, K, Array[Byte]] =>
             new ForPartition {
               // The TopicPartition to which we send state snapshots for this input TopicPartition.
@@ -55,27 +55,31 @@ object Sink {
                   hashKey(topicPartition.toString, stateTopicPartitions)
                 )
 
-              // TODO: I wrote this in a hurry, maybe it does not work
               override def latestState: F[Map[K, S]] = {
-                // TODO: Document
                 val stateConsumer: Stream[F, CommittableConsumerRecord[F, K, S]] =
                   for {
+                    // generate a random groupId, since we don't want
+                    // this to be part of a consumer group
                     consumer: KafkaConsumer[F, K, S] <-
                       consumeStateConfig.makeConsumer(
-                        mappedTopicPartition,
-                        ConsumerConfig.Seek.ToBeginning
+                        topicPartition = mappedTopicPartition,
+                        groupId        = None,
+                        seek           = ConsumerConfig.Seek.ToBeginning
                       )
 
-                    endOffset: Long <- Stream.eval {
-                      consumer.endOffsets(Set(mappedTopicPartition)).map { offsets =>
-                        offsets(mappedTopicPartition) // Unsafe but this should ALWAYS succeed
-                      }
-                    }
+                    offsets: Map[TopicPartition, Long] <-
+                      Stream.eval(consumer.endOffsets(Set(mappedTopicPartition)))
 
-                    // TODO: Document
-                    records <-
+                    // unsafe but it should ALWAYS succeed
+                    endOffset: Long =
+                      offsets(mappedTopicPartition)
+
+                    // At this point, no other instance will be producing state snapshots
+                    // for the keys this instance cares about, so we can assume that there
+                    // wont be any state snapshots that we currently care about with offset > endOffset.
+                    records: CommittableConsumerRecord[F, K, S] <-
                       consumer.stream.takeWhile { record =>
-                        record.record.offset >= endOffset
+                        record.record.offset <= endOffset
                       }
 
                   } yield records
@@ -92,23 +96,29 @@ object Sink {
                       // TODO: Is empty headers ok?
                       .serialize(stateTopic, Headers.empty, state)
                       .map { stateBytes =>
+                        // We have to know to which partition a state for a key is mapped
+                        // so we simply determine it ourselves
                         ProducerRecord(
                           topic = stateTopic,
                           key   = k,
                           value = stateBytes
-                        ).withPartition(mappedTopicPartition.partition)
+                        )
+                          .withPartition(mappedTopicPartition.partition)
                       }
                   }
 
                 val valueRecords: F[Chunk[ProducerRecord[K, Array[Byte]]]] =
                   batch.values.flatTraverse { case (k, values) =>
                     values.traverse { v =>
+                      val topic: String =
+                        topicOut(v)
+
                       Serializer[F, V]
                         // TODO: Is empty headers ok?
-                        .serialize(outTopic(v), Headers.empty, v)
+                        .serialize(topic, Headers.empty, v)
                         .map { valueBytes =>
                           ProducerRecord(
-                            topic = outTopic(v),
+                            topic = topic,
                             key   = k,
                             value = valueBytes
                           )
