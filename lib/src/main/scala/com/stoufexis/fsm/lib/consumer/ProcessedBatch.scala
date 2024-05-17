@@ -1,4 +1,4 @@
-package com.stoufexis.lib.consumer
+package com.stoufexis.fsm.lib.consumer
 
 import cats.syntax.all._
 import fs2.Chunk

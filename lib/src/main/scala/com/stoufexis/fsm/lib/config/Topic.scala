@@ -1,4 +1,4 @@
-package com.stoufexis.lib.config
+package com.stoufexis.fsm.lib.config
 
 /**
   * Description of a kafka topic.

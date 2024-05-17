@@ -1,4 +1,4 @@
-package com.stoufexis.lib
+package com.stoufexis.fsm.lib
 
 import fs2.Chunk
 import org.apache.kafka.common.utils.Bytes

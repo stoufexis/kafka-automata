@@ -1,10 +1,10 @@
-package com.stoufexis.lib.consumer
+package com.stoufexis.fsm.lib.consumer
 
 import cats.Functor
 import cats.effect._
 import cats.implicits._
-import com.stoufexis.lib.config.ConsumerConfig
-import com.stoufexis.lib.typeclass.Empty
+import com.stoufexis.fsm.lib.config.ConsumerConfig
+import com.stoufexis.fsm.lib.typeclass.Empty
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
