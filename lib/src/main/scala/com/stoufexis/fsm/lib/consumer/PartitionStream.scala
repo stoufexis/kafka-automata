@@ -4,7 +4,8 @@ import cats.Functor
 import cats.effect._
 import cats.implicits._
 import com.stoufexis.fsm.lib.config.ConsumerConfig
-import com.stoufexis.fsm.lib.typeclass.Empty
+import com.stoufexis.fsm.lib.fsm.FSM
+import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
@@ -14,15 +15,15 @@ trait PartitionStream[F[_], InstanceId, Value] {
 
   val topicPartition: TopicPartition
 
-  def process[State: Empty, Out](
+  def process[State, Out](
     init: Map[InstanceId, State],
-    f:    (State, Chunk[Value]) => F[(State, Chunk[Out])]
+    f:    FSM[F, InstanceId, State, Value, Out]
   ): Stream[F, ProcessedBatch[F, InstanceId, State, Out]]
 
 }
 
 object PartitionStream {
-  def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
+  def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: FromRecord[F, K, *]](
     consumerConfig: ConsumerConfig,
     groupId:        String,
     topic:          String,
@@ -30,11 +31,14 @@ object PartitionStream {
   ): Stream[F, PartitionStream[F, K, V]] =
     for {
       // TODO: Log consumer creation
-      consumer: KafkaConsumer[F, K, V] <-
+      consumer: KafkaConsumer[F, K, Array[Byte]] <-
         consumerConfig
-          .makeConsumer[F, K, V](topic, Some(groupId), ConsumerConfig.Seek.None)
+          .makeConsumer[F, K, Array[Byte]](topic, Some(groupId), ConsumerConfig.Seek.None)
 
-      partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] <-
+      partitions: Map[
+        TopicPartition,
+        Stream[F, CommittableConsumerRecord[F, K, Array[Byte]]]
+      ] <-
         consumer.partitionsMapStream
 
       (topicPartition, records) <-
@@ -42,6 +46,12 @@ object PartitionStream {
 
       batches: Stream[F, Batch[F, K, V]] =
         records
+          // log failed deserialization
+          .evalMapFilter { ccr =>
+            FromRecord[F, K, V].apply(ccr.record).map {
+              _.map { v => ccr.map(_ => v) }
+            }
+          }
           .groupWithin(Int.MaxValue, batchEvery)
           .mapFilter(Batch(_))
 
@@ -56,21 +66,29 @@ object PartitionStream {
       override val topicPartition: TopicPartition =
         partition
 
-      override def process[State: Empty, Out](
+      override def process[State, Out](
         init: Map[K, State],
-        f:    (State, Chunk[V]) => F[(State, Chunk[Out])]
+        f:    FSM[F, K, State, V, Out]
       ): Stream[F, ProcessedBatch[F, K, State, Out]] =
         batches.evalMapAccumulate(init) { (states, batch) =>
           batch
             .process { case (key, inputs) =>
-              f(states.getOrElse(key, Empty[State].empty), inputs)
+              f(key)(states.get(key), inputs)
             }
             .map {
-              case (processed: Map[K, (State, Chunk[Out])], offset: CommittableOffset[F]) =>
+              case (out: Map[K, (Option[State], Chunk[Out])], ofs: CommittableOffset[F]) =>
                 val outBatch: ProcessedBatch[F, K, State, Out] =
-                  ProcessedBatch(processed, offset)
+                  ProcessedBatch(out, ofs)
 
-                (states ++ outBatch.statesMap, outBatch)
+                val outStates: Map[K, Option[State]] =
+                  outBatch.statesMap
+
+                val newStates: Map[K, State] =
+                  outStates.foldLeft(states) {
+                    case (st, (k, v)) => st.updatedWith(k)(_ => v)
+                  }
+
+                (newStates, outBatch)
             }
         }.map(_._2)
     }

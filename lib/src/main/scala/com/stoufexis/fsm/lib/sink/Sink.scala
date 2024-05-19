@@ -85,8 +85,8 @@ object Sink {
                 def serializeKey(k: InstanceId): F[Array[Byte]] =
                   Serializer[F, InstanceId].serialize(stateTopic, Headers.empty, k)
 
-                def serializeState(s: S): F[Array[Byte]] =
-                  Serializer[F, S].serialize(stateTopic, Headers.empty, s)
+                def serializeState(s: Option[S]): F[Array[Byte]] =
+                  Serializer[F, Option[S]].serialize(stateTopic, Headers.empty, s)
 
                 val stateRecords: F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
                   Chunk.from(batch.statesMap).traverse { case (k, state) =>

@@ -5,9 +5,9 @@ import fs2.Chunk
 import fs2.kafka._
 
 case class ProcessedBatch[F[_], InstanceId, State, Value](
-  records: Map[InstanceId, (State, Chunk[Value])],
+  records: Map[InstanceId, (Option[State], Chunk[Value])],
   offset:  CommittableOffset[F]
 ) {
-  def statesMap: Map[InstanceId, State] = records.fmap(_._1)
-  def values:    Chunk[Value]           = Chunk.from(records).flatMap(_._2._2)
+  def statesMap: Map[InstanceId, Option[State]] = records.fmap(_._1)
+  def values:    Chunk[Value]                   = Chunk.from(records).flatMap(_._2._2)
 }
