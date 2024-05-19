@@ -12,29 +12,30 @@ import org.apache.kafka.common.TopicPartition
 
 import java.util.UUID
 
-case class ConsumerConfig[F[_]: Async, K, V](
-  bootstrapServers:  String,
-  keyDeserializer:   Deserializer[F, K],
-  valueDeserializer: Deserializer[F, V]
+case class ConsumerConfig(
+  bootstrapServers: String
 ) {
-  def makeConsumer(
+  def makeConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
     topic:   String,
     groupId: Option[String],
     seek:    Seek
   ): Stream[F, KafkaConsumer[F, K, V]] =
     makeConsumer(Left(topic), groupId, seek)
 
-  def makeConsumer(
+  def makeConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
     topicPartition: TopicPartition,
     groupId:        Option[String],
     seek:           Seek
   ): Stream[F, KafkaConsumer[F, K, V]] =
     makeConsumer(Right(NonEmptySet.one(topicPartition)), groupId, seek)
 
-  def makeConsumer(
+  def makeConsumer[F[_]: Async, K, V](
     subscribeTo: Either[String, NonEmptySet[TopicPartition]],
     groupId:     Option[String],
     seek:        Seek
+  )(implicit
+    keyDeserializer:   Deserializer[F, K],
+    valueDeserializer: Deserializer[F, V]
   ): Stream[F, KafkaConsumer[F, K, V]] =
     for {
       gid: String <-
@@ -69,15 +70,6 @@ case class ConsumerConfig[F[_]: Async, K, V](
 }
 
 object ConsumerConfig {
-  def apply[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
-    bootstrapServers: String
-  ): ConsumerConfig[F, K, V] =
-    ConsumerConfig(
-      bootstrapServers  = bootstrapServers,
-      keyDeserializer   = implicitly,
-      valueDeserializer = implicitly
-    )
-
   sealed trait Seek
   object Seek {
     case object ToEnd       extends Seek
