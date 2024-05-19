@@ -19,13 +19,4 @@ package object util {
 
   def chunkToMap[K, V](chunk: Chunk[(K, V)]): Map[K, V] =
     ???
-  // chunk.foldLeft(Map.empty[K, V]) { (acc, a) =>
-  //   val (k, v) = split(a)
-
-  //   acc.updatedWith(k) {
-  //     case None =>
-
-  //   }
-
-  // }
 }

@@ -3,6 +3,7 @@ package com.stoufexis.fsm.lib
 import cats.effect._
 import com.stoufexis.fsm.lib.config._
 import com.stoufexis.fsm.lib.consumer._
+import com.stoufexis.fsm.lib.fsm._
 import com.stoufexis.fsm.lib.sink._
 import com.stoufexis.fsm.lib.typeclass._
 import fs2._
@@ -11,7 +12,7 @@ import org.apache.kafka.common.TopicPartition
 import scala.concurrent.duration.FiniteDuration
 
 trait Pipeline[F[_], InstanceId, State, In, Out] {
-  def process(f: (State, Chunk[In]) => F[(State, Chunk[Out])]): Stream[F, Unit]
+  def process(f: FSM[F, InstanceId, State, In, Out]): Stream[F, Unit]
 }
 
 object Pipeline {
@@ -42,15 +43,14 @@ object Pipeline {
     consumerBatchEvery:   FiniteDuration,
     topicIn:              String,
     stateTopic:           String,
-    stateTopicPartitions: Int,
+    stateTopicPartitions: Int
   )(implicit
     ev1: Async[F],
     ev2: Serializer[F, InstanceId],
     ev3: Deserializer[F, InstanceId],
-    ev4: Empty[State],
     ev5: Serializer[F, State],
     ev6: Deserializer[F, State],
-    ev7: Deserializer[F, In],
+    ev7: FromRecord[F, InstanceId, In],
     ev8: Router[F, Out]
   ): Pipeline[F, InstanceId, State, In, Out] = {
     val pConfig: ProducerConfig =
@@ -85,14 +85,12 @@ object Pipeline {
     apply(partitionStreams, sink)
   }
 
-  def apply[F[_]: Concurrent, InstanceId, State: Empty, In, Out](
+  def apply[F[_]: Concurrent, InstanceId, State, In, Out](
     partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]],
     sink:             Sink[F, InstanceId, State, Out]
   ): Pipeline[F, InstanceId, State, In, Out] =
     new Pipeline[F, InstanceId, State, In, Out] {
-      override def process(
-        f: (State, Chunk[In]) => F[(State, Chunk[Out])]
-      ): Stream[F, Unit] = {
+      override def process(f: FSM[F, InstanceId, State, In, Out]): Stream[F, Unit] = {
         for {
           stream: PartitionStream[F, InstanceId, In] <-
             partitionStreams

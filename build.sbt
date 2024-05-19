@@ -79,12 +79,18 @@ lazy val lib =
           config ++
           kittens ++
           testdeps,
-      addCompilerPlugin(
-        "org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full
-      ),
+      addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
+      addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+    )
+
+lazy val voting =
+  (project in file("examples/voting"))
+    .dependsOn(lib)
+    .settings(
+      addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
       addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
     )
 
 lazy val root =
   (project in file("."))
-    .aggregate(lib)
+    .aggregate(lib, voting)
