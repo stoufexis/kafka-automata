@@ -62,9 +62,7 @@ object PartitionStream {
       ): Stream[F, ProcessedBatch[F, K, State, Out]] =
         batches.evalMapAccumulate(init) { (states, batch) =>
           batch
-            .process { case (key, inputs) =>
-              f(key)(states.get(key), inputs)
-            }
+            .process { (key, inputs) => f(key)(states.get(key), inputs) }
             .map {
               case (out: Map[K, (Option[State], Chunk[Out])], ofs: CommittableOffset[F]) =>
                 val outBatch: ProcessedBatch[F, K, State, Out] =
