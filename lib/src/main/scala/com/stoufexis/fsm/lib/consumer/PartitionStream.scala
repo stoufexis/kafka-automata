@@ -5,7 +5,6 @@ import cats.effect._
 import cats.implicits._
 import com.stoufexis.fsm.lib.config.ConsumerConfig
 import com.stoufexis.fsm.lib.fsm.FSM
-import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
@@ -23,7 +22,7 @@ trait PartitionStream[F[_], InstanceId, Value] {
 }
 
 object PartitionStream {
-  def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: FromRecord[F, K, *]](
+  def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
     consumerConfig: ConsumerConfig,
     groupId:        String,
     topic:          String,
@@ -31,14 +30,11 @@ object PartitionStream {
   ): Stream[F, PartitionStream[F, K, V]] =
     for {
       // TODO: Log consumer creation
-      consumer: KafkaConsumer[F, K, Array[Byte]] <-
+      consumer: KafkaConsumer[F, K, V] <-
         consumerConfig
-          .makeConsumer[F, K, Array[Byte]](topic, Some(groupId), ConsumerConfig.Seek.None)
+          .makeConsumer[F, K, V](topic, Some(groupId), ConsumerConfig.Seek.None)
 
-      partitions: Map[
-        TopicPartition,
-        Stream[F, CommittableConsumerRecord[F, K, Array[Byte]]]
-      ] <-
+      partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] <-
         consumer.partitionsMapStream
 
       (topicPartition, records) <-
@@ -46,12 +42,6 @@ object PartitionStream {
 
       batches: Stream[F, Batch[F, K, V]] =
         records
-          // log failed deserialization
-          .evalMapFilter { ccr =>
-            FromRecord[F, K, V].apply(ccr.record).map {
-              _.map { v => ccr.map(_ => v) }
-            }
-          }
           .groupWithin(Int.MaxValue, batchEvery)
           .mapFilter(Batch(_))
 

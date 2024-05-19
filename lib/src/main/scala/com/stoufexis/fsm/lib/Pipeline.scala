@@ -50,7 +50,7 @@ object Pipeline {
     ev3: Deserializer[F, InstanceId],
     ev5: Serializer[F, State],
     ev6: Deserializer[F, State],
-    ev7: FromRecord[F, InstanceId, In],
+    ev7: Deserializer[F, In],
     ev8: ToRecords[F, Out]
   ): Pipeline[F, InstanceId, State, In, Out] = {
     val pConfig: ProducerConfig =
