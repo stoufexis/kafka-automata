@@ -25,7 +25,7 @@ object Sink {
     F[_]:       Async,
     InstanceId: Serializer[F, *]: Deserializer[F, *],
     S:          Serializer[F, *]: Deserializer[F, *],
-    V:          Router[F, *]
+    V:          ToRecords[F, *]
   ](
     producerConfig:       ProducerConfig,
     consumeStateConfig:   ConsumerConfig,
@@ -100,9 +100,7 @@ object Sink {
                   }
 
                 val valueRecords: F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
-                  batch.values.flatTraverse { v =>
-                    Router[F, V].toProducerRecords(v)
-                  }
+                  batch.values.flatTraverse(ToRecords[F, V].apply)
 
                 (stateRecords, valueRecords).flatMapN { (s, v) =>
                   val records: Chunk[CommittableProducerRecords[F, Array[Byte], Array[Byte]]] =
