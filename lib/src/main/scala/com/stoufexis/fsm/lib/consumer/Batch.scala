@@ -7,8 +7,8 @@ import com.stoufexis.fsm.lib.util.chunkToMap
 import fs2._
 import fs2.kafka._
 
-trait Batch[F[_], Key, Value] {
-  def process[Out](f: (Key, Chunk[Value]) => F[Out]): F[(Map[Key, Out], CommittableOffset[F])]
+trait Batch[F[_], InstanceId, Value] {
+  def process[Out](f: (InstanceId, Chunk[Value]) => F[Out]): F[(Map[InstanceId, Out], CommittableOffset[F])]
 }
 
 object Batch {
@@ -16,14 +16,14 @@ object Batch {
   /** Assumes that chunk contains only one topic-partition and is ordered by offset. Returns
     * None if input chunk was empty.
     */
-  def apply[F[_]: Concurrent, K, V](
-    chunk: Chunk[CommittableConsumerRecord[F, K, V]]
-  ): Option[Batch[F, K, V]] =
+  def apply[F[_]: Concurrent, InstanceId, V](
+    chunk: Chunk[CommittableConsumerRecord[F, InstanceId, V]]
+  ): Option[Batch[F, InstanceId, V]] =
     // Checks if empty and also gives us the last which is needed later
     chunk.last map { last =>
-      new Batch[F, K, V] {
-        val records: Map[K, Vector[V]] =
-          chunk.foldLeft(Map[K, Vector[V]]()) {
+      new Batch[F, InstanceId, V] {
+        val records: Map[InstanceId, Vector[V]] =
+          chunk.foldLeft(Map[InstanceId, Vector[V]]()) {
             case (map, record) =>
               val key   = record.record.key
               val value = record.record.value
@@ -36,8 +36,8 @@ object Batch {
 
         // I don't like all the iterations that are necessary in this step
         // TODO: improve
-        override def process[Out](f: (K, Chunk[V]) => F[Out])
-          : F[(Map[K, Out], CommittableOffset[F])] =
+        override def process[Out](f: (InstanceId, Chunk[V]) => F[Out])
+          : F[(Map[InstanceId, Out], CommittableOffset[F])] =
           Chunk
             .from(records.fmap(Chunk.from))
             .parUnorderedTraverse {

@@ -4,10 +4,10 @@ import cats.syntax.all._
 import fs2.Chunk
 import fs2.kafka._
 
-case class ProcessedBatch[F[_], Key, State, Value](
-  records: Map[Key, (State, Chunk[Value])],
+case class ProcessedBatch[F[_], InstanceId, State, Value](
+  records: Map[InstanceId, (State, Chunk[Value])],
   offset:  CommittableOffset[F]
 ) {
-  def statesMap: Map[Key, State]            = records.fmap(_._1)
-  def values:    Chunk[(Key, Chunk[Value])] = Chunk.from(records.fmap(_._2))
+  def statesMap: Map[InstanceId, State] = records.fmap(_._1)
+  def values:    Chunk[Value]           = Chunk.from(records).flatMap(_._2._2)
 }

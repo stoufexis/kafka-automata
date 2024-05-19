@@ -10,20 +10,20 @@ import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
 import scala.concurrent.duration.FiniteDuration
 
-trait PartitionStream[F[_], Key, Value] {
+trait PartitionStream[F[_], InstanceId, Value] {
 
   val topicPartition: TopicPartition
 
   def process[State: Empty, Out](
-    init: Map[Key, State],
+    init: Map[InstanceId, State],
     f:    (State, Chunk[Value]) => F[(State, Chunk[Out])]
-  ): Stream[F, ProcessedBatch[F, Key, State, Out]]
+  ): Stream[F, ProcessedBatch[F, InstanceId, State, Out]]
 
 }
 
 object PartitionStream {
-  def fromConsumer[F[_]: Temporal, K, V](
-    consumerConfig: ConsumerConfig[F, K, V],
+  def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
+    consumerConfig: ConsumerConfig,
     groupId:        String,
     topic:          String,
     batchEvery:     FiniteDuration
@@ -32,7 +32,7 @@ object PartitionStream {
       // TODO: Log consumer creation
       consumer: KafkaConsumer[F, K, V] <-
         consumerConfig
-          .makeConsumer(topic, Some(groupId), ConsumerConfig.Seek.None)
+          .makeConsumer[F, K, V](topic, Some(groupId), ConsumerConfig.Seek.None)
 
       partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] <-
         consumer.partitionsMapStream

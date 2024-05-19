@@ -5,14 +5,15 @@ import cats.implicits._
 import com.stoufexis.fsm.lib.config._
 import com.stoufexis.fsm.lib.consumer.ProcessedBatch
 import com.stoufexis.fsm.lib.sink.hashKey
+import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
 
-trait Sink[F[_], Key, State, Out] {
+trait Sink[F[_], InstanceId, State, Out] {
   trait ForPartition {
-    def latestState: F[Map[Key, State]]
-    def emit(batch: ProcessedBatch[F, Key, State, Out]): F[Unit]
+    def latestState: F[Map[InstanceId, State]]
+    def emit(batch: ProcessedBatch[F, InstanceId, State, Out]): F[Unit]
   }
 
   def forPartition(inputPartition: TopicPartition): Resource[F, ForPartition]
@@ -20,31 +21,21 @@ trait Sink[F[_], Key, State, Out] {
 
 object Sink {
 
-  /** @param producerConfig
-    * @param consumeStateConfig
-    *   Assumed to be compacted and each record containing complete snapshots of states for a
-    *   key
-    * @param stateTopic
-    * @param stateTopicPartitions
-    * @param outTopic
-    * @return
-    */
   def fromKafka[
-    F[_]: Concurrent,
-    K,
-    S: Serializer[F, *],
-    V: Serializer[F, *]
+    F[_]:       Async,
+    InstanceId: Serializer[F, *]: Deserializer[F, *],
+    S:          Serializer[F, *]: Deserializer[F, *],
+    V:          Router[F, *]
   ](
-    producerConfig:       ProducerConfig[F, K, Array[Byte]],
-    consumeStateConfig:   ConsumerConfig[F, K, S],
+    producerConfig:       ProducerConfig,
+    consumeStateConfig:   ConsumerConfig,
     stateTopic:           String,
-    stateTopicPartitions: Int,
-    topicOut:             V => String
-  ): Sink[F, K, S, V] =
-    new Sink[F, K, S, V] {
+    stateTopicPartitions: Int
+  ): Sink[F, InstanceId, S, V] =
+    new Sink[F, InstanceId, S, V] {
       override def forPartition(topicPartition: TopicPartition): Resource[F, ForPartition] =
-        producerConfig.makeProducer(topicPartition.toString).map {
-          producer: TransactionalKafkaProducer[F, K, Array[Byte]] =>
+        producerConfig.makeProducer[F, Array[Byte], Array[Byte]](topicPartition.toString).map {
+          producer: TransactionalKafkaProducer[F, Array[Byte], Array[Byte]] =>
             new ForPartition {
               // The TopicPartition to which we send state snapshots for this input TopicPartition.
               // The mapping will break for older states if a Sink is re-initialized with a different stateTopicPartitions value
@@ -55,13 +46,13 @@ object Sink {
                   hashKey(topicPartition.toString, stateTopicPartitions)
                 )
 
-              override def latestState: F[Map[K, S]] = {
-                val stateConsumer: Stream[F, CommittableConsumerRecord[F, K, S]] =
+              override def latestState: F[Map[InstanceId, S]] = {
+                val stateConsumer: Stream[F, CommittableConsumerRecord[F, InstanceId, S]] =
                   for {
                     // generate a random groupId, since we don't want
                     // this to be part of a consumer group
-                    consumer: KafkaConsumer[F, K, S] <-
-                      consumeStateConfig.makeConsumer(
+                    consumer: KafkaConsumer[F, InstanceId, S] <-
+                      consumeStateConfig.makeConsumer[F, InstanceId, S](
                         topicPartition = mappedTopicPartition,
                         groupId        = None,
                         seek           = ConsumerConfig.Seek.ToBeginning
@@ -77,58 +68,45 @@ object Sink {
                     // At this point, no other instance will be producing state snapshots
                     // for the keys this instance cares about, so we can assume that there
                     // wont be any state snapshots that we currently care about with offset > endOffset.
-                    records: CommittableConsumerRecord[F, K, S] <-
+                    records: CommittableConsumerRecord[F, InstanceId, S] <-
                       consumer.stream.takeWhile { record =>
                         record.record.offset <= endOffset
                       }
 
                   } yield records
 
-                stateConsumer.compile.fold(Map.empty[K, S]) { (acc, record) =>
+                stateConsumer.compile.fold(Map.empty[InstanceId, S]) { (acc, record) =>
                   acc.updated(record.record.key, record.record.value)
                 }
               }
 
-              override def emit(batch: ProcessedBatch[F, K, S, V]): F[Unit] = {
-                val stateRecords: F[Chunk[ProducerRecord[K, Array[Byte]]]] =
+              override def emit(batch: ProcessedBatch[F, InstanceId, S, V]): F[Unit] = {
+                // TODO: Is empty headers ok?
+                def serializeKey(k: InstanceId): F[Array[Byte]] =
+                  Serializer[F, InstanceId].serialize(stateTopic, Headers.empty, k)
+
+                def serializeState(s: S): F[Array[Byte]] =
+                  Serializer[F, S].serialize(stateTopic, Headers.empty, s)
+
+                val stateRecords: F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
                   Chunk.from(batch.statesMap).traverse { case (k, state) =>
-                    Serializer[F, S]
-                      // TODO: Is empty headers ok?
-                      .serialize(stateTopic, Headers.empty, state)
-                      .map { stateBytes =>
+                    (serializeKey(k), serializeState(state)).mapN {
+                      case (keyBytes, stateBytes) =>
                         // We have to know to which partition a state for a key is mapped
                         // so we simply determine it ourselves
-                        ProducerRecord(
-                          topic = stateTopic,
-                          key   = k,
-                          value = stateBytes
-                        )
+                        ProducerRecord(stateTopic, keyBytes, stateBytes)
                           .withPartition(mappedTopicPartition.partition)
-                      }
-                  }
-
-                val valueRecords: F[Chunk[ProducerRecord[K, Array[Byte]]]] =
-                  batch.values.flatTraverse { case (k, values) =>
-                    values.traverse { v =>
-                      val topic: String =
-                        topicOut(v)
-
-                      Serializer[F, V]
-                        // TODO: Is empty headers ok?
-                        .serialize(topic, Headers.empty, v)
-                        .map { valueBytes =>
-                          ProducerRecord(
-                            topic = topic,
-                            key   = k,
-                            value = valueBytes
-                          )
-                        }
                     }
                   }
 
+                val valueRecords: F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
+                  batch.values.flatTraverse { v =>
+                    Router[F, V].toProducerRecords(v)
+                  }
+
                 (stateRecords, valueRecords).flatMapN { (s, v) =>
-                  val records: Chunk[CommittableProducerRecords[F, K, Array[Byte]]] =
-                    Chunk.singleton(CommittableProducerRecords(s ++ v, batch.offset))
+                  val records: Chunk[CommittableProducerRecords[F, Array[Byte], Array[Byte]]] =
+                    Chunk.singleton(CommittableProducerRecords.chunk(s ++ v, batch.offset))
 
                   producer.produce(records).void
                 }

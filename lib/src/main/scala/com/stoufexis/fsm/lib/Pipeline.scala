@@ -3,14 +3,14 @@ package com.stoufexis.fsm.lib
 import cats.effect._
 import com.stoufexis.fsm.lib.config._
 import com.stoufexis.fsm.lib.consumer._
-import com.stoufexis.fsm.lib.sink.Sink
-import com.stoufexis.fsm.lib.typeclass.Empty
+import com.stoufexis.fsm.lib.sink._
+import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
 import scala.concurrent.duration.FiniteDuration
 
-trait Pipeline[F[_], Key, State, In, Out] {
+trait Pipeline[F[_], InstanceId, State, In, Out] {
   def process(f: (State, Chunk[In]) => F[(State, Chunk[Out])]): Stream[F, Unit]
 }
 
@@ -34,7 +34,7 @@ object Pipeline {
     *   Pick the output topic based on the value to be produced
     * @return
     */
-  def apply[F[_], Key, State, In, Out](
+  def apply[F[_], InstanceId, State, In, Out](
     bootstrapServers:     String,
     producerLinger:       FiniteDuration,
     producerBatchSize:    Int,
@@ -43,31 +43,30 @@ object Pipeline {
     topicIn:              String,
     stateTopic:           String,
     stateTopicPartitions: Int,
-    topicOut:             Out => String
   )(implicit
     ev1: Async[F],
-    ev2: Serializer[F, Key],
-    ev3: Deserializer[F, Key],
+    ev2: Serializer[F, InstanceId],
+    ev3: Deserializer[F, InstanceId],
     ev4: Empty[State],
     ev5: Serializer[F, State],
     ev6: Deserializer[F, State],
     ev7: Deserializer[F, In],
-    ev8: Serializer[F, Out]
-  ): Pipeline[F, Key, State, In, Out] = {
-    val pConfig: ProducerConfig[F, Key, Array[Byte]] =
+    ev8: Router[F, Out]
+  ): Pipeline[F, InstanceId, State, In, Out] = {
+    val pConfig: ProducerConfig =
       ProducerConfig(
         bootstrapServers = bootstrapServers,
         linger           = producerLinger,
         batchSize        = producerBatchSize
       )
 
-    val stateConsumerConfig: ConsumerConfig[F, Key, State] =
+    val stateConsumerConfig: ConsumerConfig =
       ConsumerConfig(bootstrapServers)
 
-    val valueConsumerConfig: ConsumerConfig[F, Key, In] =
+    val valueConsumerConfig: ConsumerConfig =
       ConsumerConfig(bootstrapServers)
 
-    val partitionStreams: Stream[F, PartitionStream[F, Key, In]] =
+    val partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]] =
       PartitionStream.fromConsumer(
         consumerConfig = valueConsumerConfig,
         groupId        = consumerGroupId,
@@ -75,28 +74,27 @@ object Pipeline {
         batchEvery     = consumerBatchEvery
       )
 
-    val sink: Sink[F, Key, State, Out] =
+    val sink: Sink[F, InstanceId, State, Out] =
       Sink.fromKafka(
         producerConfig       = pConfig,
         consumeStateConfig   = stateConsumerConfig,
         stateTopic           = stateTopic,
-        stateTopicPartitions = stateTopicPartitions,
-        topicOut             = topicOut
+        stateTopicPartitions = stateTopicPartitions
       )
 
     apply(partitionStreams, sink)
   }
 
-  def apply[F[_]: Concurrent, Key, State: Empty, In, Out](
-    partitionStreams: Stream[F, PartitionStream[F, Key, In]],
-    sink:             Sink[F, Key, State, Out]
-  ): Pipeline[F, Key, State, In, Out] =
-    new Pipeline[F, Key, State, In, Out] {
+  def apply[F[_]: Concurrent, InstanceId, State: Empty, In, Out](
+    partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]],
+    sink:             Sink[F, InstanceId, State, Out]
+  ): Pipeline[F, InstanceId, State, In, Out] =
+    new Pipeline[F, InstanceId, State, In, Out] {
       override def process(
         f: (State, Chunk[In]) => F[(State, Chunk[Out])]
       ): Stream[F, Unit] = {
         for {
-          stream: PartitionStream[F, Key, In] <-
+          stream: PartitionStream[F, InstanceId, In] <-
             partitionStreams
 
           topicPartition: TopicPartition =
@@ -105,12 +103,12 @@ object Pipeline {
           sinkForPartition: sink.ForPartition <-
             Stream.resource(sink.forPartition(topicPartition))
 
-          statesForPartition: Map[Key, State] <-
+          statesForPartition: Map[InstanceId, State] <-
             Stream.eval(sinkForPartition.latestState)
 
           // Should remain a stream of streams here
           s = for {
-            batch: ProcessedBatch[F, Key, State, Out] <-
+            batch: ProcessedBatch[F, InstanceId, State, Out] <-
               stream.process(statesForPartition, f)
 
             _ <-
