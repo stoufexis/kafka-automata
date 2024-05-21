@@ -1,45 +1,37 @@
 package com.stoufexis.fsm.examples.voting.fsm
 
 import cats._
+import cats.implicits._
 import com.stoufexis.fsm.examples.voting.domain.message._
 import com.stoufexis.fsm.examples.voting.domain.typ._
 import com.stoufexis.fsm.lib.fsm.FSM
 import fs2._
+import io.chrisdavenport.fuuid.FUUIDGen
 
 /** Input is expected to be keyed by itemId in kafka. If it's not, we reject it.
   */
-class VoteFSM[F[_]: Monad] extends FSM.Unbatched[F, ItemId, Votes, VoteCommand, Output] {
-
-  val F: Monad[F] = implicitly
+class VoteFSM[F[_]: Monad: FUUIDGen] extends FSM.Unbatched[F, ItemId, Votes, VoteCommand, Output] {
 
   def reject(
     state:  Option[Votes],
     cmd:    VoteCommand,
     reason: String
-  ): F[(Option[Votes], Chunk[Output])] = {
-    val event: Output =
-      Output.event(VoteEvent.CommandRejected(cmd, reason))
+  ): F[(Option[Votes], Chunk[Output])] =
+    VoteEvent.commandRejected(cmd, reason) map { event =>
+      (state, Chunk.singleton(Output.event(event)))
+    }
 
-    F.pure(state, Chunk.singleton(event))
-  }
+  def execute(state: Option[Votes], cmd: VoteCommand): F[(Option[Votes], Chunk[Output])] =
+    for {
+      event: VoteEvent <-
+        VoteEvent.commandExecuted(cmd)
 
-  def execute(state: Option[Votes], cmd: VoteCommand): F[(Option[Votes], Chunk[Output])] = {
-    val event: Output =
-      Output.event(VoteEvent.CommandExecuted(cmd))
+      update: Option[VoteStateUpdate] <-
+        state.traverse { votes =>
+          VoteStateUpdate.make(cmd.correlationId, cmd.itemId, votes.total)
+        }
 
-    val update: Option[Output] =
-      state map { votes =>
-        Output.update(VoteStateUpdate(cmd.itemId, votes.total))
-      }
-
-    val both: Chunk[Output] =
-      update match {
-        case None      => Chunk.singleton(event)
-        case Some(upd) => Chunk(upd, event)
-      }
-
-    F.pure(state, both)
-  }
+    } yield (state, Output.both(event, update))
 
   // Aliased to make it easier to read
   type Fold = (Option[Votes], VoteCommand) => F[(Option[Votes], Chunk[Output])]
@@ -69,7 +61,7 @@ class VoteFSM[F[_]: Monad] extends FSM.Unbatched[F, ItemId, Votes, VoteCommand, 
     case (None, cmd @ (_: VoteCommand.Downvote | _: VoteCommand.Upvote | _: VoteCommand.VoteEnd)) =>
       reject(None, cmd, s"No open vote for $item")
 
-    // For the following cases, note that Votes already makes sure that there cannot be
+    // For the following cases note that Votes already makes sure that there cannot be
     // double upvotes/downvotes, but we explicitly handle it here to output rejection events
 
     // Users cannot upvote the same item twice
