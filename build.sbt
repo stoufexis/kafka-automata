@@ -14,9 +14,9 @@ ThisBuild / scalacOptions := Seq(
   "-language:experimental.macros", // Allow macro definition (besides implementation and application). Disabled, as this will significantly change in Scala 3
   "-language:higherKinds",         // Allow higher-kinded types
   "-language:implicitConversions", // for newtypes
-  "-unchecked",      // Enable additional warnings where generated code depends on assumptions.
-  "-Xcheckinit",     // Wrap field accessors to throw an exception on uninitialized access.
-  "-Xlint:constant", // Evaluation of a constant arithmetic expression results in an error.
+  "-unchecked",          // Enable additional warnings where generated code depends on assumptions.
+  "-Xcheckinit",         // Wrap field accessors to throw an exception on uninitialized access.
+  "-Xlint:constant",     // Evaluation of a constant arithmetic expression results in an error.
   "-Xlint:inaccessible", // Warn about inaccessible types in method signatures.
   "-Xlint:unused",       // TODO check if we still need -Wunused below
   "-Xlint:deprecation",  // Enable linted deprecations.
@@ -24,13 +24,13 @@ ThisBuild / scalacOptions := Seq(
   "-Wmacros:both",       // Lints code before and after applying a macro
   "-Wnumeric-widen",     // Warn when numerics are widened.
   "-Xlint:implicit-recursion", // Warn when an implicit resolves to an enclosing self-definition.
-  "-Wunused:imports",   // Warn if an import selector is not referenced.
-  "-Wunused:patvars",   // Warn if a variable bound in a pattern is unused.
-  "-Wunused:privates",  // Warn if a private member is unused.
-  "-Wunused:locals",    // Warn if a local definition is unused.
-  "-Wunused:explicits", // Warn if an explicit parameter is unused.
-  "-Wunused:implicits", // Warn if an implicit parameter is unused.
-  "-Wunused:params",    // Enable -Wunused:explicits,implicits.
+  "-Wunused:imports",          // Warn if an import selector is not referenced.
+  "-Wunused:patvars",          // Warn if a variable bound in a pattern is unused.
+  "-Wunused:privates",         // Warn if a private member is unused.
+  "-Wunused:locals",           // Warn if a local definition is unused.
+  "-Wunused:explicits",        // Warn if an explicit parameter is unused.
+  "-Wunused:implicits",        // Warn if an implicit parameter is unused.
+  "-Wunused:params",           // Enable -Wunused:explicits,implicits.
   "-Wunused:linted",
   "-Wvalue-discard", // Warn when non-Unit expression results are unused.
   "-Ymacro-annotations"
@@ -69,6 +69,8 @@ lazy val config =
 
 lazy val kittens = Seq("org.typelevel" %% "kittens" % "3.3.0")
 
+lazy val uuid = Seq("io.chrisdavenport" %% "fuuid" % "0.8.0-M2")
+
 lazy val lib =
   (project in file("lib"))
     .settings(
@@ -79,16 +81,17 @@ lazy val lib =
           config ++
           kittens ++
           testdeps,
-      addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
-      addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+      addCompilerPlugin("org.typelevel" % "kind-projector"     % "0.13.2" cross CrossVersion.full),
+      addCompilerPlugin("com.olegpy"   %% "better-monadic-for" % "0.3.1")
     )
 
 lazy val voting =
   (project in file("examples/voting"))
     .dependsOn(lib)
     .settings(
-      addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
-      addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+      libraryDependencies ++= uuid,
+      addCompilerPlugin("org.typelevel" % "kind-projector"     % "0.13.2" cross CrossVersion.full),
+      addCompilerPlugin("com.olegpy"   %% "better-monadic-for" % "0.3.1")
     )
 
 lazy val root =
