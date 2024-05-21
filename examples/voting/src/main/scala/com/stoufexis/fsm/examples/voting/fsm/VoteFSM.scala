@@ -18,7 +18,7 @@ class VoteFSM[F[_]: Monad: FUUIDGen] extends FSM.Unbatched[F, ItemId, Votes, Vot
     reason: String
   ): F[(Option[Votes], Chunk[Output])] =
     VoteEvent.commandRejected(cmd, reason) map { event =>
-      (state, Chunk.singleton(Output.event(event)))
+      (state, Chunk.singleton(Output.Event(event)))
     }
 
   def execute(state: Option[Votes], cmd: VoteCommand): F[(Option[Votes], Chunk[Output])] =
