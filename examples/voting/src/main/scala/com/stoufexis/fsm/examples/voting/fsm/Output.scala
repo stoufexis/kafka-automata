@@ -5,8 +5,8 @@ import fs2.Chunk
 
 sealed trait Output
 
-// Would benefit from scala 3 union types
 object Output {
+  // Would benefit from scala 3 union types
   case class Event(event: VoteEvent)        extends Output
   case class Update(event: VoteStateUpdate) extends Output
 
