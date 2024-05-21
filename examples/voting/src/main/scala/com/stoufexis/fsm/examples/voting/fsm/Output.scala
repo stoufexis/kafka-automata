@@ -3,16 +3,16 @@ package com.stoufexis.fsm.examples.voting.fsm
 import com.stoufexis.fsm.examples.voting.domain.message._
 import fs2.Chunk
 
-case class Output(either: Either[VoteEvent, VoteStateUpdate])
+sealed trait Output
 
+// Would benefit from scala 3 union types
 object Output {
-  def event(event: VoteEvent): Output = ???
-  def update(update: VoteStateUpdate): Output = ???
+  case class Event(event: VoteEvent)        extends Output
+  case class Update(event: VoteStateUpdate) extends Output
 
   def both(event: VoteEvent, update: Option[VoteStateUpdate]): Chunk[Output] =
     update match {
-      case None      => Chunk.singleton(Output.event(event))
-      case Some(upd) => Chunk(Output.update(upd), Output.event(event))
+      case None      => Chunk.singleton(Event(event))
+      case Some(upd) => Chunk(Update(upd), Event(event))
     }
-
 }
