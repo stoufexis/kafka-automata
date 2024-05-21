@@ -62,9 +62,14 @@ object PartitionStream {
       ): Stream[F, ProcessedBatch[F, K, State, Out]] =
         batches.evalMapAccumulate(init) { (states, batch) =>
           batch
-            .process { (key, inputs) => f(key)(states.get(key), inputs) }
+            .process { (key, inputs) =>
+              f.batch(key)(states.get(key), inputs)
+            }
             .map {
               case (out: Map[K, (Option[State], Chunk[Out])], ofs: CommittableOffset[F]) =>
+                // TODO: Filter out None states if input state was None too.
+                //       Outputting a null state to the topic would be useless then.
+
                 val outBatch: ProcessedBatch[F, K, State, Out] =
                   ProcessedBatch(out, ofs)
 

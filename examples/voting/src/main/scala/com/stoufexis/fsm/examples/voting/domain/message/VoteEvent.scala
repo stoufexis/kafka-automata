@@ -1,4 +1,4 @@
-package com.stoufexis.fsm.examples.voting.domain
+package com.stoufexis.fsm.examples.voting.domain.message
 
 sealed trait VoteEvent
 
