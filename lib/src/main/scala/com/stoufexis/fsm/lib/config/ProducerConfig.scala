@@ -2,6 +2,7 @@ package com.stoufexis.fsm.lib.config
 
 import cats.effect.kernel._
 import fs2.kafka._
+import fs2.Stream
 import scala.concurrent.duration.FiniteDuration
 
 case class ProducerConfig(
@@ -14,8 +15,8 @@ case class ProducerConfig(
   )(implicit
     keySerializer:   Serializer[F, K],
     valueSerializer: Serializer[F, V]
-  ): Resource[F, TransactionalKafkaProducer[F, K, V]] =
-    TransactionalKafkaProducer.resource(
+  ): Stream[F, TransactionalKafkaProducer[F, K, V]] =
+    TransactionalKafkaProducer.stream(
       TransactionalProducerSettings(
         txId,
         ProducerSettings(keySerializer, valueSerializer)
