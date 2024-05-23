@@ -1,6 +1,5 @@
 package com.stoufexis.fsm.lib
 
-import fs2.Chunk
 import org.apache.kafka.common.utils.Bytes
 
 import java.nio.ByteBuffer
@@ -13,10 +12,4 @@ package object util {
     bb.putLong(uuid.getLeastSignificantBits());
     Bytes.wrap(bb.array())
   }
-
-  def chunkToMap[A, K, V](chunk: Chunk[A], split: A => (K, V)): Map[K, V] =
-    ???
-
-  def chunkToMap[K, V](chunk: Chunk[(K, V)]): Map[K, V] =
-    ???
 }

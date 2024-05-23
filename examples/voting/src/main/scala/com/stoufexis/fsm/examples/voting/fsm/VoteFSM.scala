@@ -72,7 +72,6 @@ object VoteFSM {
       // User downvotes `item`
       case (Some(st), cmd: VoteCommand.Downvote) =>
         execute(Some(st downvote cmd.userId), cmd)
-
     }
 
     FSM.unbatched(fold)
