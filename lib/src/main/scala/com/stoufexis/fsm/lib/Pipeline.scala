@@ -8,7 +8,6 @@ import com.stoufexis.fsm.lib.sink._
 import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
-import org.apache.kafka.common.TopicPartition
 import scala.concurrent.duration.FiniteDuration
 
 trait Pipeline[F[_], InstanceId, State, In, Out] {
@@ -95,26 +94,16 @@ object Pipeline {
           stream: PartitionStream[F, InstanceId, In] <-
             partitionStreams
 
-          topicPartition: TopicPartition =
-            stream.topicPartition
-
           sinkForPartition: sink.ForPartition <-
-            Stream.resource(sink.forPartition(topicPartition))
-
-          statesForPartition: Map[InstanceId, State] <-
-            Stream.eval(sinkForPartition.latestState)
+            sink.forPartition(stream.topicPartition)
 
           // Should remain a stream of streams here
-          s = for {
-            batch: ProcessedBatch[F, InstanceId, State, Out] <-
-              stream.process(statesForPartition, f)
+          processed: Stream[F, Unit] =
+            stream
+              .process(sinkForPartition.latestState, f)
+              .evalMap(sinkForPartition.emit)
 
-            _ <-
-              Stream.eval(sinkForPartition.emit(batch))
-
-          } yield ()
-
-        } yield s
+        } yield processed
 
       }.parJoinUnbounded
     }
