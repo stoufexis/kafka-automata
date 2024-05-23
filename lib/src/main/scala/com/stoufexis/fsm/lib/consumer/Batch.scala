@@ -3,18 +3,19 @@ package com.stoufexis.fsm.lib.consumer
 import cats.effect._
 import cats.effect.implicits._
 import cats.implicits._
-import com.stoufexis.fsm.lib.util.chunkToMap
 import fs2._
 import fs2.kafka._
 
 trait Batch[F[_], InstanceId, Value] {
-  def process[Out](f: (InstanceId, Chunk[Value]) => F[Out]): F[(Map[InstanceId, Out], CommittableOffset[F])]
+  def process[Out](
+    f: (InstanceId, Chunk[Value]) => F[Out]
+  ): F[(Map[InstanceId, Out], CommittableOffset[F])]
 }
 
 object Batch {
 
-  /** Assumes that chunk contains only one topic-partition and is ordered by offset. Returns
-    * None if input chunk was empty.
+  /** Assumes that chunk contains only one topic-partition and is ordered by offset. Returns None if
+    * input chunk was empty.
     */
   def apply[F[_]: Concurrent, InstanceId, V](
     chunk: Chunk[CommittableConsumerRecord[F, InstanceId, V]]
@@ -33,6 +34,12 @@ object Batch {
                 case Some(acc) => Some(acc :+ value)
               }
           }
+
+        def chunkToMap[A](chunk: Chunk[(InstanceId, A)]): Map[InstanceId, A] =
+          chunk
+            .iterator
+            .map { case (inst, a) => (inst, a) }
+            .toMap
 
         // I don't like all the iterations that are necessary in this step
         // TODO: improve
