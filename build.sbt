@@ -51,8 +51,9 @@ lazy val effect =
 
 lazy val log =
   Seq(
-    "org.typelevel" %% "log4cats-core"  % "2.6.0",
-    "org.typelevel" %% "log4cats-slf4j" % "2.6.0"
+    "org.typelevel" %% "log4cats-core"   % "2.6.0",
+    "org.typelevel" %% "log4cats-slf4j"  % "2.6.0",
+    "ch.qos.logback" % "logback-classic" % "1.5.6"
   )
 
 lazy val testdeps =

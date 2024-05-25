@@ -17,6 +17,11 @@ trait Sink[F[_], InstanceId, State, Out] {
     def emit(batch: ProcessedBatch[F, InstanceId, State, Out]): F[Unit]
   }
 
+  /** @param inputPartition
+    * @return
+    *   A sink for the given input partition. Along with the usual failure reasons, the resulting
+    *   stream will fail in case of a failure to deserialize a state snapshot
+    */
   def forPartition(inputPartition: TopicPartition): Stream[F, ForPartition]
 }
 

@@ -57,14 +57,11 @@ object PartitionStream {
         consumerConfig
           .makeConsumer[F, Result[K], Result[V]](topic, Some(groupId), ConsumerConfig.Seek.None)
 
-      partitions: Map[
-        TopicPartition,
-        Stream[F, CommittableConsumerRecord[F, Result[K], Result[V]]]
-      ] <-
+      pm: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, Result[K], Result[V]]]] <-
         consumer.partitionsMapStream
 
       (topicPartition, records) <-
-        Stream.iterable(partitions)
+        Stream.iterable(pm)
 
       batches: Stream[F, Batch[F, K, V]] =
         records

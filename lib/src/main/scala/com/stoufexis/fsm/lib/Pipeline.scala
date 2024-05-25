@@ -1,6 +1,7 @@
 package com.stoufexis.fsm.lib
 
 import cats.effect._
+import cats.implicits._
 import com.stoufexis.fsm.lib.config._
 import com.stoufexis.fsm.lib.consumer._
 import com.stoufexis.fsm.lib.fsm._
@@ -8,7 +9,9 @@ import com.stoufexis.fsm.lib.sink._
 import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
+import org.apache.kafka.common.TopicPartition
 import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scala.concurrent.duration.FiniteDuration
 
 trait Pipeline[F[_], InstanceId, State, In, Out] {
@@ -51,54 +54,64 @@ object Pipeline {
     ev3: Deserializer[F, InstanceId],
     ev5: Serializer[F, State],
     ev6: Deserializer[F, State],
-    ev7: Deserializer[F, In],
-    log: Logger[F]
-  ): Pipeline[F, InstanceId, State, In, Out] = {
-    val pConfig: ProducerConfig =
-      ProducerConfig(
-        bootstrapServers = bootstrapServers,
-        linger           = producerLinger,
-        batchSize        = producerBatchSize
-      )
+    ev7: Deserializer[F, In]
+  ): F[Pipeline[F, InstanceId, State, In, Out]] =
+    Slf4jLogger.fromClass[F](Pipeline.getClass()).map { implicit log =>
+      val pConfig: ProducerConfig =
+        ProducerConfig(
+          bootstrapServers = bootstrapServers,
+          linger           = producerLinger,
+          batchSize        = producerBatchSize
+        )
 
-    val stateConsumerConfig: ConsumerConfig =
-      ConsumerConfig(bootstrapServers)
+      val stateConsumerConfig: ConsumerConfig =
+        ConsumerConfig(bootstrapServers)
 
-    val valueConsumerConfig: ConsumerConfig =
-      ConsumerConfig(bootstrapServers)
+      val valueConsumerConfig: ConsumerConfig =
+        ConsumerConfig(bootstrapServers)
 
-    val partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]] =
-      PartitionStream.fromConsumer(
-        consumerConfig = valueConsumerConfig,
-        groupId        = consumerGroupId,
-        topic          = topicIn,
-        batchEvery     = consumerBatchEvery
-      )
+      val partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]] =
+        PartitionStream.fromConsumer(
+          consumerConfig = valueConsumerConfig,
+          groupId        = consumerGroupId,
+          topic          = topicIn,
+          batchEvery     = consumerBatchEvery
+        )
 
-    val sink: Sink[F, InstanceId, State, Out] =
-      Sink.fromKafka(
-        producerConfig       = pConfig,
-        consumeStateConfig   = stateConsumerConfig,
-        stateTopic           = stateTopic,
-        stateTopicPartitions = stateTopicPartitions,
-        toRecords            = toRecords
-      )
+      val sink: Sink[F, InstanceId, State, Out] =
+        Sink.fromKafka(
+          producerConfig       = pConfig,
+          consumeStateConfig   = stateConsumerConfig,
+          stateTopic           = stateTopic,
+          stateTopicPartitions = stateTopicPartitions,
+          toRecords            = toRecords
+        )
 
-    apply(partitionStreams, sink)
-  }
+      apply(partitionStreams, sink)
+    }
 
   def apply[F[_]: Concurrent, InstanceId, State, In, Out](
     partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]],
     sink:             Sink[F, InstanceId, State, Out]
+  )(implicit
+    log: Logger[F]
   ): Pipeline[F, InstanceId, State, In, Out] =
     new Pipeline[F, InstanceId, State, In, Out] {
+      def logAndRethrow[A](t: Throwable, tp: TopicPartition): Stream[F, A] =
+        Stream.eval(log.error(t)(s"Could not rebuild state for $tp")) >>
+          Stream.raiseError[F](t)
+
       override def process(f: FSM[F, InstanceId, State, In, Out]): Stream[F, Unit] = {
         for {
           stream: PartitionStream[F, InstanceId, In] <-
             partitionStreams
 
+          // Failing to recover state for a partition is considered fatal for now
+          // so we leave the error unhandled
           sinkForPartition: sink.ForPartition <-
-            sink.forPartition(stream.topicPartition)
+            sink
+              .forPartition(stream.topicPartition)
+              .handleErrorWith(logAndRethrow(_, stream.topicPartition))
 
           // Should remain a stream of streams here
           processed: Stream[F, Unit] =

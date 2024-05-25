@@ -8,18 +8,19 @@ import com.stoufexis.fsm.lib.Pipeline
 import com.stoufexis.fsm.lib.kafka.Setup
 import com.stoufexis.fsm.lib.typeclass.ToRecords
 import fs2.Stream
+import io.chrisdavenport.fuuid.FUUIDGen
 
 object Main extends IOApp.Simple {
   override def run: IO[Unit] =
-    runStream.compile.drain
+    runStream[IO].compile.drain
 
-  def runStream: Stream[IO, Unit] = for {
+  def runStream[F[_]: Async: FUUIDGen]: Stream[F, Unit] = for {
     config <-
-      Stream.eval(VotesConfig.load[IO])
+      Stream.eval(VotesConfig.load[F])
 
     _ <-
       Stream.eval {
-        Setup.reset[IO](
+        Setup.reset[F](
           bootstrapServers = config.bootstrapServers,
           stateTopic       = config.stateTopic,
           inputTopic       = config.commandsTopic,
@@ -27,27 +28,29 @@ object Main extends IOApp.Simple {
         )
       }
 
-    toRecords: ToRecords[IO, Output] =
-      Output.toRecords[IO](
+    toRecords: ToRecords[F, Output] =
+      Output.toRecords[F](
         eventsTopic  = config.eventsTopic.name,
         updatesTopic = config.updatesTopic.name
       )
 
-    pipeline: Pipeline[IO, ItemId, Votes, VoteCommand, Output] =
-      Pipeline(
-        bootstrapServers     = config.bootstrapServers,
-        producerLinger       = config.producerLinger,
-        producerBatchSize    = config.producerBatchSize,
-        consumerGroupId      = config.consumerGroupId,
-        consumerBatchEvery   = config.consumerBatchEvery,
-        topicIn              = config.commandsTopic.name,
-        stateTopic           = config.stateTopic.name,
-        stateTopicPartitions = config.stateTopic.partitions,
-        toRecords            = toRecords
-      )
+    pipeline: Pipeline[F, ItemId, Votes, VoteCommand, Output] <-
+      Stream.eval {
+        Pipeline[F, ItemId, Votes, VoteCommand, Output](
+          bootstrapServers     = config.bootstrapServers,
+          producerLinger       = config.producerLinger,
+          producerBatchSize    = config.producerBatchSize,
+          consumerGroupId      = config.consumerGroupId,
+          consumerBatchEvery   = config.consumerBatchEvery,
+          topicIn              = config.commandsTopic.name,
+          stateTopic           = config.stateTopic.name,
+          stateTopicPartitions = config.stateTopic.partitions,
+          toRecords            = toRecords
+        )
+      }
 
     _ <-
-      pipeline.process(VoteFSM[IO])
+      pipeline.process(VoteFSM[F])
 
   } yield ()
 
