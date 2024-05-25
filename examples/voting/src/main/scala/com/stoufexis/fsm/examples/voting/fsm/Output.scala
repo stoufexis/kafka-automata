@@ -1,6 +1,6 @@
 package com.stoufexis.fsm.examples.voting.fsm
 
-import cats.Applicative
+import cats.implicits._
 import cats.effect.kernel.Async
 import com.stoufexis.fsm.examples.voting.domain.message._
 import com.stoufexis.fsm.lib.typeclass.ToRecords
@@ -25,7 +25,24 @@ object Output {
     updatesTopic: String
   ): ToRecords[F, Output] =
     new ToRecords[F, Output] {
+      def asRecords[K: Serializer[F, *], A: Serializer[F, *]](
+        key:     K,
+        payload: A,
+        topic : String
+      ): F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
+        for {
+          keyBytes <-
+            Serializer[F, K].serialize(topic, Headers.empty, key)
+
+          payloadBytes <-
+            Serializer[F, A].serialize(topic, Headers.empty, payload)
+
+        } yield Chunk.singleton(ProducerRecord(topic, keyBytes, payloadBytes))
+
       override def apply(a: Output): F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
-        ???
+        a match {
+          case Event(event)   => asRecords(event.cmd.userId, event, eventsTopic)
+          case Update(update) => asRecords(update.itemId, update, updatesTopic)
+        }
     }
 }

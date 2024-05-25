@@ -70,7 +70,10 @@ lazy val config =
 
 lazy val kittens = Seq("org.typelevel" %% "kittens" % "3.3.0")
 
-lazy val uuid = Seq("io.chrisdavenport" %% "fuuid" % "0.8.0-M2")
+lazy val uuid = Seq(
+  "io.chrisdavenport" %% "fuuid"       % "0.8.0-M2",
+  "io.chrisdavenport" %% "fuuid-circe" % "0.8.0-M2"
+)
 
 lazy val circe = Seq(
   "io.circe" %% "circe-core"    % "0.14.7",
