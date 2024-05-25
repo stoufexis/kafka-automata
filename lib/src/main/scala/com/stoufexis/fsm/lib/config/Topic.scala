@@ -1,7 +1,14 @@
 package com.stoufexis.fsm.lib.config
 
-/**
-  * Description of a kafka topic.
-  * Best-fsm needs to know the partitions configuration for its input and state topics
+import org.apache.kafka.clients.admin.NewTopic
+import org.apache.kafka.common.config.ConfigResource
+
+/** Description of a kafka topic
   */
-case class Topic(name: String, partitions: Int)
+case class Topic(name: String, partitions: Int, replicationFactor: Short) {
+  def asNewTopic: NewTopic =
+    new NewTopic(name, partitions, replicationFactor)
+
+  def asConfigResource: ConfigResource =
+    new ConfigResource(ConfigResource.Type.TOPIC, name)
+}
