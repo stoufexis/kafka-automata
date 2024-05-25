@@ -5,9 +5,11 @@ import cats.effect._
 import cats.implicits._
 import com.stoufexis.fsm.lib.config.ConsumerConfig
 import com.stoufexis.fsm.lib.fsm.FSM
+import com.stoufexis.fsm.lib.util.Result
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
+import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.FiniteDuration
 
 trait PartitionStream[F[_], InstanceId, Value] {
@@ -24,18 +26,41 @@ trait PartitionStream[F[_], InstanceId, Value] {
 object PartitionStream {
   // TODO Error handling for serialization errors
   // TODO logging
-  def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
+  def fromConsumer[F[_], K: Deserializer[F, *], V: Deserializer[F, *]](
     consumerConfig: ConsumerConfig,
     groupId:        String,
     topic:          String,
     batchEvery:     FiniteDuration
-  ): Stream[F, PartitionStream[F, K, V]] =
-    for {
-      consumer: KafkaConsumer[F, K, V] <-
-        consumerConfig
-          .makeConsumer[F, K, V](topic, Some(groupId), ConsumerConfig.Seek.None)
+  )(implicit
+    log: Logger[F],
+    F:   Async[F]
+  ): Stream[F, PartitionStream[F, K, V]] = {
+    def filterDeserializationFailures(
+      records: Stream[F, CommittableConsumerRecord[F, Result[K], Result[V]]]
+    ): Stream[F, CommittableConsumerRecord[F, K, V]] =
+      records.evalMapFilter { in =>
+        in.record.bisequence match {
+          case Left(err) =>
+            log
+              .warn(s"Rejecting input record due to deserialization error: ${err}")
+              .as(Option.empty[CommittableConsumerRecord[F, K, V]])
 
-      partitions: Map[TopicPartition, Stream[F, CommittableConsumerRecord[F, K, V]]] <-
+          case Right(record) =>
+            CommittableConsumerRecord[F, K, V](record, in.offset)
+              .some
+              .pure[F]
+        }
+      }
+
+    for {
+      consumer: KafkaConsumer[F, Result[K], Result[V]] <-
+        consumerConfig
+          .makeConsumer[F, Result[K], Result[V]](topic, Some(groupId), ConsumerConfig.Seek.None)
+
+      partitions: Map[
+        TopicPartition,
+        Stream[F, CommittableConsumerRecord[F, Result[K], Result[V]]]
+      ] <-
         consumer.partitionsMapStream
 
       (topicPartition, records) <-
@@ -43,10 +68,12 @@ object PartitionStream {
 
       batches: Stream[F, Batch[F, K, V]] =
         records
+          .through(filterDeserializationFailures)
           .groupWithin(Int.MaxValue, batchEvery)
           .mapFilter(Batch(_))
 
     } yield fromBatches(topicPartition, batches)
+  }
 
   def fromBatches[F[_]: Functor, K, V](
     partition: TopicPartition,

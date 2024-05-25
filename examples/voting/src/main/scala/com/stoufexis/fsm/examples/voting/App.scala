@@ -48,6 +48,7 @@ object Main extends IOApp.Simple {
 
     _ <-
       pipeline.process(VoteFSM[IO])
+
   } yield ()
 
 }

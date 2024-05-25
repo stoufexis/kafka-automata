@@ -8,6 +8,7 @@ import com.stoufexis.fsm.lib.sink._
 import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
+import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.FiniteDuration
 
 trait Pipeline[F[_], InstanceId, State, In, Out] {
@@ -50,7 +51,8 @@ object Pipeline {
     ev3: Deserializer[F, InstanceId],
     ev5: Serializer[F, State],
     ev6: Deserializer[F, State],
-    ev7: Deserializer[F, In]
+    ev7: Deserializer[F, In],
+    log: Logger[F]
   ): Pipeline[F, InstanceId, State, In, Out] = {
     val pConfig: ProducerConfig =
       ProducerConfig(
