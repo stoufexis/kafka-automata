@@ -53,6 +53,7 @@ object Sink {
       val mappedTp: TopicPartition =
         mappedTopicPartition(topicPartition)
 
+      // fails if theres a deserialization error
       val stateConsumer: Stream[F, CommittableConsumerRecord[F, InstanceId, S]] =
         for {
           // generate a random groupId, since we don't want
