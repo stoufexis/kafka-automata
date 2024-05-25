@@ -42,15 +42,15 @@ object Pipeline {
     consumerBatchEvery:   FiniteDuration,
     topicIn:              String,
     stateTopic:           String,
-    stateTopicPartitions: Int
+    stateTopicPartitions: Int,
+    toRecords:            ToRecords[F, Out]
   )(implicit
     ev1: Async[F],
     ev2: Serializer[F, InstanceId],
     ev3: Deserializer[F, InstanceId],
     ev5: Serializer[F, State],
     ev6: Deserializer[F, State],
-    ev7: Deserializer[F, In],
-    ev8: ToRecords[F, Out]
+    ev7: Deserializer[F, In]
   ): Pipeline[F, InstanceId, State, In, Out] = {
     val pConfig: ProducerConfig =
       ProducerConfig(
@@ -78,7 +78,8 @@ object Pipeline {
         producerConfig       = pConfig,
         consumeStateConfig   = stateConsumerConfig,
         stateTopic           = stateTopic,
-        stateTopicPartitions = stateTopicPartitions
+        stateTopicPartitions = stateTopicPartitions,
+        toRecords            = toRecords
       )
 
     apply(partitionStreams, sink)

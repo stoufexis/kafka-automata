@@ -26,12 +26,13 @@ object Sink {
     F[_]:       Async,
     InstanceId: Serializer[F, *]: Deserializer[F, *],
     S:          Serializer[F, *]: Deserializer[F, *],
-    V:          ToRecords[F, *]
+    V
   ](
     producerConfig:       ProducerConfig,
     consumeStateConfig:   ConsumerConfig,
     stateTopic:           String,
-    stateTopicPartitions: Int
+    stateTopicPartitions: Int,
+    toRecords:            ToRecords[F, V]
   ): Sink[F, InstanceId, S, V] = new Sink[F, InstanceId, S, V] {
 
     // The TopicPartition to which we send state snapshots for this input TopicPartition.
@@ -115,7 +116,7 @@ object Sink {
             }
 
           val valueRecords: F[Chunk[ProducerRecord[Array[Byte], Array[Byte]]]] =
-            batch.values.flatTraverse(ToRecords[F, V].apply)
+            batch.values.flatTraverse(toRecords(_))
 
           (stateRecords, valueRecords).flatMapN { (s, v) =>
             val records: Chunk[CommittableProducerRecords[F, Array[Byte], Array[Byte]]] =
