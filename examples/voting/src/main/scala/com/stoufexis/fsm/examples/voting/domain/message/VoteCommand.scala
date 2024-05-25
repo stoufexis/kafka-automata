@@ -4,6 +4,7 @@ import cats.Functor
 import cats.implicits._
 import com.stoufexis.fsm.examples.voting.domain.typ._
 import io.chrisdavenport.fuuid.FUUIDGen
+import fs2.kafka._
 
 sealed trait VoteCommand {
   val id:            CommandId
@@ -49,4 +50,7 @@ object VoteCommand {
     userId:        UserId
   ): F[VoteCommand] =
     FUUIDGen[F].random map (id => Downvote(CommandId(id), correlationId, itemId, userId))
+
+
+  implicit def deserializerVoteCommand[F[_]]: Deserializer[F, VoteCommand] = ???
 }

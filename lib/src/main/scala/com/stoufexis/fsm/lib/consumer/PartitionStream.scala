@@ -22,6 +22,8 @@ trait PartitionStream[F[_], InstanceId, Value] {
 }
 
 object PartitionStream {
+  // TODO Error handling for serialization errors
+  // TODO logging
   def fromConsumer[F[_]: Async, K: Deserializer[F, *], V: Deserializer[F, *]](
     consumerConfig: ConsumerConfig,
     groupId:        String,
@@ -29,7 +31,6 @@ object PartitionStream {
     batchEvery:     FiniteDuration
   ): Stream[F, PartitionStream[F, K, V]] =
     for {
-      // TODO: Log consumer creation
       consumer: KafkaConsumer[F, K, V] <-
         consumerConfig
           .makeConsumer[F, K, V](topic, Some(groupId), ConsumerConfig.Seek.None)

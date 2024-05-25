@@ -40,10 +40,10 @@ object Setup {
     } yield ()
 
   def reset[F[_]: Async](
+    bootstrapServers: String,
     stateTopic:       Topic,
     inputTopic:       Topic,
-    outputTopic:      Topic,
-    bootstrapServers: String
+    outputTopics:     List[Topic]
   ): F[Unit] =
     kafkaAdminClientResource[F](bootstrapServers)
       .use { implicit client =>
@@ -51,8 +51,7 @@ object Setup {
           _ <- deleteExistingTopics
           _ <- createTopic(stateTopic, CleanupPolicy.Compact)
           _ <- createTopic(inputTopic, CleanupPolicy.Delete)
-          _ <- createTopic(outputTopic, CleanupPolicy.Delete)
+          _ <- outputTopics.traverse(createTopic(_, CleanupPolicy.Delete))
         } yield ()
-
       }
 }

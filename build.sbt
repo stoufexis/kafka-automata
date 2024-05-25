@@ -71,6 +71,12 @@ lazy val kittens = Seq("org.typelevel" %% "kittens" % "3.3.0")
 
 lazy val uuid = Seq("io.chrisdavenport" %% "fuuid" % "0.8.0-M2")
 
+lazy val circe = Seq(
+  "io.circe" %% "circe-core"    % "0.14.7",
+  "io.circe" %% "circe-generic" % "0.14.7",
+  "io.circe" %% "circe-parser"  % "0.14.7"
+)
+
 lazy val lib =
   (project in file("lib"))
     .settings(
@@ -89,7 +95,7 @@ lazy val voting =
   (project in file("examples/voting"))
     .dependsOn(lib)
     .settings(
-      libraryDependencies ++= uuid,
+      libraryDependencies ++= uuid ++ circe,
       addCompilerPlugin("org.typelevel" % "kind-projector"     % "0.13.2" cross CrossVersion.full),
       addCompilerPlugin("com.olegpy"   %% "better-monadic-for" % "0.3.1")
     )

@@ -1,6 +1,7 @@
 package com.stoufexis.fsm.examples.voting.fsm
 
 import com.stoufexis.fsm.examples.voting.domain.typ._
+import fs2.kafka._
 
 case class Votes(upvotedBy: Set[UserId], downvotedBy: Set[UserId]) {
   def upvote(uid: UserId): Votes =
@@ -18,4 +19,7 @@ case class Votes(upvotedBy: Set[UserId], downvotedBy: Set[UserId]) {
 
 object Votes {
   val empty: Votes = Votes(Set(), Set())
+
+  implicit def serializerVotes[F[_]]: Serializer[F, Votes] = ???
+  implicit def deserializerVotes[F[_]]: Deserializer[F, Votes] = ???
 }
