@@ -2,6 +2,8 @@ package com.stoufexis.fsm.examples.voting.fsm
 
 import com.stoufexis.fsm.examples.voting.domain.typ._
 import fs2.kafka._
+import io.circe._
+import cats.effect.kernel.Sync
 
 case class Votes(upvotedBy: Set[UserId], downvotedBy: Set[UserId]) {
   def upvote(uid: UserId): Votes =
@@ -20,6 +22,16 @@ case class Votes(upvotedBy: Set[UserId], downvotedBy: Set[UserId]) {
 object Votes {
   val empty: Votes = Votes(Set(), Set())
 
-  implicit def serializerVotes[F[_]]: Serializer[F, Votes] = ???
-  implicit def deserializerVotes[F[_]]: Deserializer[F, Votes] = ???
+
+  implicit def encoderVotes: Encoder[Votes] =
+    io.circe.generic.semiauto.deriveEncoder
+
+  implicit def decoderVotes: Decoder[Votes] =
+    io.circe.generic.semiauto.deriveDecoder
+
+  implicit def serializerVotes[F[_]: Sync]: Serializer[F, Votes] =
+    com.stoufexis.fsm.examples.voting.codec.jsonSerializer
+
+  implicit def deserializerVotes[F[_]: Sync]: Deserializer[F, Votes] =
+    com.stoufexis.fsm.examples.voting.codec.jsonDeserializer
 }
