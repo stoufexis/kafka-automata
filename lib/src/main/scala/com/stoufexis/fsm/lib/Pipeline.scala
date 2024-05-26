@@ -39,6 +39,7 @@ object Pipeline {
     * @return
     */
   def apply[F[_], InstanceId, State, In, Out](
+    instanceId:           Int,
     bootstrapServers:     String,
     producerLinger:       FiniteDuration,
     producerBatchSize:    Int,
@@ -56,39 +57,41 @@ object Pipeline {
     ev6: Deserializer[F, State],
     ev7: Deserializer[F, In]
   ): F[Pipeline[F, InstanceId, State, In, Out]] =
-    Slf4jLogger.fromClass[F](Pipeline.getClass()).map { implicit log =>
-      val pConfig: ProducerConfig =
-        ProducerConfig(
-          bootstrapServers = bootstrapServers,
-          linger           = producerLinger,
-          batchSize        = producerBatchSize
-        )
+    Slf4jLogger
+      .fromName[F](Pipeline.getClass().getName() + s"_$instanceId")
+      .map { implicit log =>
+        val pConfig: ProducerConfig =
+          ProducerConfig(
+            bootstrapServers = bootstrapServers,
+            linger           = producerLinger,
+            batchSize        = producerBatchSize
+          )
 
-      val stateConsumerConfig: ConsumerConfig =
-        ConsumerConfig(bootstrapServers)
+        val stateConsumerConfig: ConsumerConfig =
+          ConsumerConfig(bootstrapServers)
 
-      val valueConsumerConfig: ConsumerConfig =
-        ConsumerConfig(bootstrapServers)
+        val valueConsumerConfig: ConsumerConfig =
+          ConsumerConfig(bootstrapServers)
 
-      val partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]] =
-        PartitionStream.fromConsumer(
-          consumerConfig = valueConsumerConfig,
-          groupId        = consumerGroupId,
-          topic          = topicIn,
-          batchEvery     = consumerBatchEvery
-        )
+        val partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]] =
+          PartitionStream.fromConsumer(
+            consumerConfig = valueConsumerConfig,
+            groupId        = consumerGroupId,
+            topic          = topicIn,
+            batchEvery     = consumerBatchEvery
+          )
 
-      val sink: Sink[F, InstanceId, State, Out] =
-        Sink.fromKafka(
-          producerConfig       = pConfig,
-          consumeStateConfig   = stateConsumerConfig,
-          stateTopic           = stateTopic,
-          stateTopicPartitions = stateTopicPartitions,
-          toRecords            = toRecords
-        )
+        val sink: Sink[F, InstanceId, State, Out] =
+          Sink.fromKafka(
+            producerConfig       = pConfig,
+            consumeStateConfig   = stateConsumerConfig,
+            stateTopic           = stateTopic,
+            stateTopicPartitions = stateTopicPartitions,
+            toRecords            = toRecords
+          )
 
-      apply(partitionStreams, sink)
-    }
+        apply(partitionStreams, sink)
+      }
 
   def apply[F[_]: Concurrent, InstanceId, State, In, Out](
     partitionStreams: Stream[F, PartitionStream[F, InstanceId, In]],

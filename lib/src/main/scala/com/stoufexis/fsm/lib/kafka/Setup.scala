@@ -57,8 +57,8 @@ object Setup {
     kafkaAdminClientResource[F](bootstrapServers).use { implicit client =>
       Slf4jLogger.fromClass(Setup.getClass).flatMap { implicit log =>
         for {
-          _ <- deleteExistingTopics
-          _ <- Async[F].sleep(5.seconds)
+          // _ <- deleteExistingTopics
+          // _ <- Async[F].sleep(5.seconds)
           _ <- createTopic(stateTopic, CleanupPolicy.Compact)
           _ <- createTopic(inputTopic, CleanupPolicy.Delete)
           _ <- outputTopics.traverse(createTopic(_, CleanupPolicy.Delete))

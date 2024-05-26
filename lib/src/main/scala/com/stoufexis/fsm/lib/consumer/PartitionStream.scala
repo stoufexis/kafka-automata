@@ -60,6 +60,7 @@ object PartitionStream {
 
     for {
       consumer: KafkaConsumer[F, Result[K], Result[V]] <-
+        Stream.eval(log.info("Create consumer")) >>
         consumerConfig
           .makeConsumer[F, Result[K], Result[V]](topic, Some(groupId), ConsumerConfig.Seek.None)
 

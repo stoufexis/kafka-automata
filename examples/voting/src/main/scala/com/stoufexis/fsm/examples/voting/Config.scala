@@ -11,7 +11,7 @@ case class VotesConfig(
   updatesTopic:       Topic          = Topic("vote-updates", 10, 1),
   stateTopic:         Topic          = Topic("state-snapshots", 10, 1),
   consumerGroupId:    String         = "group1",
-  consumerBatchEvery: FiniteDuration = 25.millis,
+  consumerBatchEvery: FiniteDuration = 250.millis,
   producerLinger:     FiniteDuration = 5.millis,
   producerBatchSize:  Int            = 16000
 )

@@ -41,6 +41,7 @@ case class ConsumerConfig(
       gid: String <-
         Stream.eval {
           groupId.fold {
+            // TODO: Use FUUID here as well
             Async[F].delay(UUID.randomUUID).map(_.toString)
           } { value =>
             Async[F].pure(value)

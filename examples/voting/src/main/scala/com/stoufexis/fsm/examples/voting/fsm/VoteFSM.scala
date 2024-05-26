@@ -1,24 +1,35 @@
 package com.stoufexis.fsm.examples.voting.fsm
 
 import cats._
+import cats.effect._
 import cats.implicits._
 import com.stoufexis.fsm.examples.voting.domain.message._
 import com.stoufexis.fsm.examples.voting.domain.typ._
 import com.stoufexis.fsm.lib.fsm.FSM
 import fs2._
 import io.chrisdavenport.fuuid.FUUIDGen
+import org.typelevel.log4cats.Logger
+import scala.concurrent.duration.DurationInt
 
 object VoteFSM {
 
-  def apply[F[_]: Monad: FUUIDGen]: FSM[F, ItemId, Votes, VoteCommand, Output] = {
+  def apply[F[_]: FUUIDGen](
+    instanceId: Int
+  )(implicit
+    temporal: Temporal[F]
+  ): FSM[F, ItemId, Votes, VoteCommand, Output] = {
     def reject(
       state:  Option[Votes],
       cmd:    VoteCommand,
       reason: String
     ): F[(Option[Votes], Chunk[Output])] =
-      VoteEvent.commandRejected(cmd, reason) map { event =>
-        (state, Chunk.singleton(Output.Event(event)))
-      }
+      for {
+        event: (Option[Votes], Chunk[Output]) <-
+          VoteEvent.commandRejected(cmd, reason).map { event =>
+            (state, Chunk.singleton(Output.Event(event)))
+          }
+
+      } yield (event)
 
     def execute(state: Option[Votes], cmd: VoteCommand): F[(Option[Votes], Chunk[Output])] =
       for {

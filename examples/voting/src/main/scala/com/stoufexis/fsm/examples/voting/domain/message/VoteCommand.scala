@@ -8,7 +8,6 @@ import com.stoufexis.fsm.examples.voting.domain.typ._
 import fs2.kafka._
 import io.chrisdavenport.fuuid.FUUIDGen
 import io.circe._
-import io.circe.syntax._
 
 sealed trait VoteCommand {
   val id:            CommandId
@@ -99,4 +98,7 @@ object VoteCommand {
 
   implicit def deserializerVoteCommand[F[_]: Sync]: Deserializer[F, VoteCommand] =
     com.stoufexis.fsm.examples.voting.codec.jsonDeserializer
+
+  implicit def serializerVoteCommand[F[_]: Sync]: Serializer[F, VoteCommand] =
+    com.stoufexis.fsm.examples.voting.codec.jsonSerializer
 }
