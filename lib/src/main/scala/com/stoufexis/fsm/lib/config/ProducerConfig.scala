@@ -24,6 +24,7 @@ case class ProducerConfig(
           .withEnableIdempotence(true)
           .withLinger(linger)
           .withBatchSize(batchSize)
+          .withRetries(3) // Im not sure about this number.
       )
     )
 }
