@@ -17,4 +17,9 @@ package object codec {
         case Right(value) => Deserializer.const(value)
       }
     }
+
+  implicit class JsonWithType(json: Json) {
+    def withType(typ: String): Json =
+      json.deepMerge(Json.obj("type" -> typ.asJson))
+  }
 }
