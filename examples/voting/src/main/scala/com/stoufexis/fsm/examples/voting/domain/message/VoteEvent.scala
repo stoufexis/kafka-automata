@@ -3,8 +3,8 @@ package com.stoufexis.fsm.examples.voting.domain.message
 import cats.Functor
 import cats.effect.kernel.Sync
 import cats.implicits._
-import com.stoufexis.fsm.examples.voting.domain.typ.EventId
 import com.stoufexis.fsm.examples.voting.codec._
+import com.stoufexis.fsm.examples.voting.domain.typ.EventId
 import fs2.kafka._
 import io.chrisdavenport.fuuid.FUUIDGen
 import io.circe.Encoder
