@@ -9,7 +9,6 @@
     </appender>
 
     <logger name="org.apache.kafka" level="warn"/>
-    <logger name="org.apache.kafka" level="warn"/>
 
     <root level="info">
         <appender-ref ref="CONSOLE"/>
