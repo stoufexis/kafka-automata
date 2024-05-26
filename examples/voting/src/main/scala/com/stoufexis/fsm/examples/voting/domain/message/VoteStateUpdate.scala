@@ -8,6 +8,9 @@ import fs2.kafka._
 import io.chrisdavenport.fuuid.FUUIDGen
 import io.circe._
 
+/**
+  * The current vote state for a given itemId
+  */
 case class VoteStateUpdate(
   updateId:      UpdateId,
   correlationId: CorrelationId,

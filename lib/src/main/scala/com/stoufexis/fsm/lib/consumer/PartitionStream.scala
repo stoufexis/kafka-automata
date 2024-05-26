@@ -12,6 +12,9 @@ import org.apache.kafka.common.TopicPartition
 import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.FiniteDuration
 
+/**
+  * A stream of records that corresponds to a single kafka partition.
+  */
 trait PartitionStream[F[_], InstanceId, Value] {
 
   val topicPartition: TopicPartition
@@ -24,8 +27,6 @@ trait PartitionStream[F[_], InstanceId, Value] {
 }
 
 object PartitionStream {
-  // TODO Error handling for serialization errors
-  // TODO logging
   def fromConsumer[F[_], K: Deserializer[F, *], V: Deserializer[F, *]](
     consumerConfig: ConsumerConfig,
     groupId:        String,

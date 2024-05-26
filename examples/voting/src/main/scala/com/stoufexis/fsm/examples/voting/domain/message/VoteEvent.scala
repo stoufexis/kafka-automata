@@ -10,6 +10,9 @@ import io.chrisdavenport.fuuid.FUUIDGen
 import io.circe.Encoder
 import io.circe.generic.semiauto._
 
+/**
+  * Result of processing a VoteCommand
+  */
 sealed trait VoteEvent {
   val eventId: EventId
   val cmd:     VoteCommand

@@ -6,6 +6,9 @@ import cats.implicits._
 import fs2._
 import fs2.kafka._
 
+/**
+  * A batch of to-be-processed records.
+  */
 trait Batch[F[_], InstanceId, Value] {
   def process[Out](
     f: (InstanceId, Chunk[Value]) => F[Out]

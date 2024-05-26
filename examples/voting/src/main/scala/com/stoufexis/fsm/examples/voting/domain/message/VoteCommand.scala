@@ -8,8 +8,12 @@ import com.stoufexis.fsm.examples.voting.domain.typ._
 import fs2.kafka._
 import io.chrisdavenport.fuuid.FUUIDGen
 import io.circe._
-import io.circe.syntax._
 
+/**
+ * Input to the votes state machine
+ * 
+ * Users can open votes on items, close votes on items, upvote items, and downvote items
+ */
 sealed trait VoteCommand {
   val id:            CommandId
   val itemId:        ItemId
