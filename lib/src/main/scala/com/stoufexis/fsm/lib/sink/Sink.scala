@@ -9,6 +9,7 @@ import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
 import org.apache.kafka.common.TopicPartition
+import org.typelevel.log4cats.Logger
 
 trait Sink[F[_], InstanceId, State, Out] {
   trait ForPartition {
@@ -38,6 +39,8 @@ object Sink {
     stateTopic:           String,
     stateTopicPartitions: Int,
     toRecords:            ToRecords[F, V]
+  )(implicit
+    log: Logger[F]
   ): Sink[F, InstanceId, S, V] = new Sink[F, InstanceId, S, V] {
 
     // The TopicPartition to which we send state snapshots for this input TopicPartition.
@@ -54,42 +57,45 @@ object Sink {
     ): Stream[F, TransactionalKafkaProducer[F, Array[Byte], Array[Byte]]] =
       producerConfig.makeProducer(topicPartition.toString)
 
+    // fails if theres a deserialization error
     def compileLatestState(topicPartition: TopicPartition): Stream[F, Map[InstanceId, S]] = {
       val mappedTp: TopicPartition =
         mappedTopicPartition(topicPartition)
 
-      // fails if theres a deserialization error
-      val stateConsumer: Stream[F, CommittableConsumerRecord[F, InstanceId, S]] =
-        for {
-          // generate a random groupId, since we don't want
-          // this to be part of a consumer group
-          consumer: KafkaConsumer[F, InstanceId, S] <-
-            consumeStateConfig.makeConsumer[F, InstanceId, S](
-              topicPartition = mappedTp,
-              groupId        = None,
-              seek           = ConsumerConfig.Seek.ToBeginning
-            )
+      for {
+        // generate a random groupId, since we don't want
+        // this to be part of a consumer group
+        consumer: KafkaConsumer[F, InstanceId, S] <-
+          consumeStateConfig.makeConsumer[F, InstanceId, S](
+            topicPartition = mappedTp,
+            groupId        = None,
+            seek           = ConsumerConfig.Seek.ToBeginning
+          )
 
-          offsets: Map[TopicPartition, Long] <-
-            Stream.eval(consumer.endOffsets(Set(mappedTp)))
+        offsets: Map[TopicPartition, Long] <-
+          Stream.eval(consumer.endOffsets(Set(mappedTp)))
 
-          // unsafe but it should ALWAYS succeed
-          endOffset: Long =
-            offsets(mappedTp)
+        // unsafe but it should ALWAYS succeed
+        endOffset: Long =
+          offsets(mappedTp)
 
-          // At this point, no other instance will be producing state snapshots
-          // for the keys this instance cares about, so we can assume that there
-          // wont be any state snapshots that we currently care about with offset > endOffset.
-          records: CommittableConsumerRecord[F, InstanceId, S] <-
-            consumer.stream.takeWhile { record =>
+        state: Map[InstanceId, S] <-
+          consumer
+            .stream
+            .takeWhile { record =>
+              // At this point, no other instance will be producing state snapshots
+              // for the keys this instance cares about, so we can assume that there
+              // wont be any state snapshots that we currently care about with offset > endOffset.
               record.record.offset <= endOffset
             }
+            .fold(Map.empty[InstanceId, S]) { (acc, record) =>
+              acc.updated(record.record.key, record.record.value)
+            }
 
-        } yield records
+        _ <-
+          Stream.eval(log.info(s"Compiled state for $topicPartition"))
 
-      stateConsumer.fold(Map.empty[InstanceId, S]) { (acc, record) =>
-        acc.updated(record.record.key, record.record.value)
-      }
+      } yield state
     }
 
     override def forPartition(topicPartition: TopicPartition): Stream[F, ForPartition] =
