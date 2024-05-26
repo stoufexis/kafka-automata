@@ -4,6 +4,7 @@ import cats.Functor
 import cats.effect.kernel.Sync
 import cats.implicits._
 import com.stoufexis.fsm.examples.voting.domain.typ.EventId
+import com.stoufexis.fsm.examples.voting.codec._
 import fs2.kafka._
 import io.chrisdavenport.fuuid.FUUIDGen
 import io.circe.Encoder
@@ -32,8 +33,8 @@ object VoteEvent {
       deriveEncoder[CommandRejected]
 
     Encoder.instance {
-      case e: CommandExecuted => encodeCommandExecuted(e)
-      case r: CommandRejected => encodeCommandRejected(r)
+      case e: CommandExecuted => encodeCommandExecuted(e).withType("COMMAND_EXECUTED")
+      case r: CommandRejected => encodeCommandRejected(r).withType("COMMAND_REJECTED")
     }
   }
 
