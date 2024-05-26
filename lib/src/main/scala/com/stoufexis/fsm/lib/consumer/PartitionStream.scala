@@ -52,6 +52,12 @@ object PartitionStream {
         }
       }
 
+    def logNewPartition(tp: TopicPartition): Stream[F, Unit] =
+      Stream.eval(log.info(s"Got assigned to partition $tp"))
+
+    def completeStream(tp: TopicPartition): F[Unit] =
+      log.info(s"Closing stream for $tp")
+
     for {
       consumer: KafkaConsumer[F, Result[K], Result[V]] <-
         consumerConfig
@@ -63,11 +69,15 @@ object PartitionStream {
       (topicPartition, records) <-
         Stream.iterable(pm)
 
+      _ <-
+        logNewPartition(topicPartition)
+
       batches: Stream[F, Batch[F, K, V]] =
         records
           .through(filterDeserializationFailures)
           .groupWithin(Int.MaxValue, batchEvery)
           .mapFilter(Batch(_))
+          .onFinalize(completeStream(topicPartition))
 
     } yield fromBatches(topicPartition, batches)
   }
