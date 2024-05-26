@@ -8,6 +8,7 @@ import com.stoufexis.fsm.lib.sink.hashKey
 import com.stoufexis.fsm.lib.typeclass._
 import fs2._
 import fs2.kafka._
+import org.apache.kafka.clients.consumer.OffsetAndTimestamp
 import org.apache.kafka.common.TopicPartition
 import org.typelevel.log4cats.Logger
 
@@ -73,28 +74,31 @@ object Sink {
             seek           = ConsumerConfig.Seek.ToBeginning
           )
 
-        offsets: Map[TopicPartition, Long] <-
-          Stream.eval(consumer.endOffsets(Set(mappedTp)))
+        now: Long <-
+          Stream.eval(Async[F].realTime.map(_.toMillis))
+
+        offsets: Map[TopicPartition, Option[OffsetAndTimestamp]] <-
+          Stream.eval(consumer.offsetsForTimes(Map(mappedTp -> now)))
 
         // unsafe but it should ALWAYS succeed
-        endOffset: Long =
-          offsets(mappedTp)
-
         state: Map[InstanceId, S] <-
-          if (endOffset == 0) // Partition is empty
-            Stream(Map.empty[InstanceId, S])
-          else
-            consumer
-              .stream
-              .takeWhile { record =>
-                // At this point, no other instance will be producing state snapshots
-                // for the keys this instance cares about, so we can assume that there
-                // wont be any state snapshots that we currently care about with offset > endOffset.
-                record.record.offset <= endOffset
-              }
-              .fold(Map.empty[InstanceId, S]) { (acc, record) =>
-                acc.updatedWith(record.record.key)(_ => record.record.value)
-              }
+          offsets(mappedTp) match {
+            case None =>
+              Stream(Map.empty[InstanceId, S])
+
+            case Some(offset) =>
+              consumer
+                .stream
+                .takeWhile { record =>
+                  // At this point, no other instance will be producing state snapshots
+                  // for the keys this instance cares about, so we can assume that there
+                  // wont be any state snapshots that we currently care about with offset > endOffset.
+                  record.record.offset <= offset.offset
+                }
+                .fold(Map.empty[InstanceId, S]) { (acc, record) =>
+                  acc.updatedWith(record.record.key)(_ => record.record.value)
+                }
+          }
 
         _ <-
           Stream.eval(log.info(s"Compiled state for $topicPartition from $mappedTp"))
