@@ -49,6 +49,7 @@ object Sink {
     def mappedTopicPartition(topicPartition: TopicPartition): TopicPartition =
       new TopicPartition(
         stateTopic,
+        // TODO: Mapping logic needs to spread out snapshots more evenly
         hashKey(topicPartition.toString, stateTopicPartitions)
       )
 
@@ -80,20 +81,23 @@ object Sink {
           offsets(mappedTp)
 
         state: Map[InstanceId, S] <-
-          consumer
-            .stream
-            .takeWhile { record =>
-              // At this point, no other instance will be producing state snapshots
-              // for the keys this instance cares about, so we can assume that there
-              // wont be any state snapshots that we currently care about with offset > endOffset.
-              record.record.offset <= endOffset
-            }
-            .fold(Map.empty[InstanceId, S]) { (acc, record) =>
-              acc.updated(record.record.key, record.record.value)
-            }
+          if (endOffset == 0) // Partition is empty
+            Stream(Map.empty[InstanceId, S])
+          else
+            consumer
+              .stream
+              .takeWhile { record =>
+                // At this point, no other instance will be producing state snapshots
+                // for the keys this instance cares about, so we can assume that there
+                // wont be any state snapshots that we currently care about with offset > endOffset.
+                record.record.offset <= endOffset
+              }
+              .fold(Map.empty[InstanceId, S]) { (acc, record) =>
+                acc.updated(record.record.key, record.record.value)
+              }
 
         _ <-
-          Stream.eval(log.info(s"Compiled state for $topicPartition"))
+          Stream.eval(log.info(s"Compiled state for $topicPartition from $mappedTp"))
 
       } yield state
     }
