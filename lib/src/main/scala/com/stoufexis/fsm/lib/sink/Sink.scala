@@ -66,8 +66,8 @@ object Sink {
       for {
         // generate a random groupId, since we don't want
         // this to be part of a consumer group
-        consumer: KafkaConsumer[F, InstanceId, S] <-
-          consumeStateConfig.makeConsumer[F, InstanceId, S](
+        consumer: KafkaConsumer[F, InstanceId, Option[S]] <-
+          consumeStateConfig.makeConsumer[F, InstanceId, Option[S]](
             topicPartition = mappedTp,
             groupId        = None,
             seek           = ConsumerConfig.Seek.ToBeginning
@@ -93,7 +93,7 @@ object Sink {
                 record.record.offset <= endOffset
               }
               .fold(Map.empty[InstanceId, S]) { (acc, record) =>
-                acc.updated(record.record.key, record.record.value)
+                acc.updatedWith(record.record.key)(_ => record.record.value)
               }
 
         _ <-
