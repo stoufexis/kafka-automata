@@ -10,7 +10,7 @@ import com.stoufexis.fsm.lib.typeclass.ToRecords
 import fs2.Stream
 import io.chrisdavenport.fuuid.FUUIDGen
 
-object Main extends IOApp.Simple {
+object App extends IOApp.Simple {
   override def run: IO[Unit] =
     runStream[IO].compile.drain
 

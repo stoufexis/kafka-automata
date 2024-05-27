@@ -60,7 +60,7 @@ object Sink {
     def mappedTopicPartition(topicPartition: TopicPartition): TopicPartition =
       new TopicPartition(
         stateTopic,
-        // TODO: Mapping logic needs to spread out snapshots more evenly
+        // TODO: Partitioning logic needs to spread out snapshots more evenly
         hashKey(topicPartition.toString, stateTopicPartitions)
       )
 

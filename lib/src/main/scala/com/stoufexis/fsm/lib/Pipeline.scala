@@ -14,6 +14,9 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scala.concurrent.duration.FiniteDuration
 
+/** Reads from an input topic, performes the transitions of FSM in parallel, emits state snapshots,
+  * and outputs to one or more topics
+  */
 trait Pipeline[F[_], InstanceId, State, In, Out] {
   def process(f: FSM[F, InstanceId, State, In, Out]): Stream[F, Unit]
 }

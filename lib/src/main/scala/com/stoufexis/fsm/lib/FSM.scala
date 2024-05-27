@@ -4,6 +4,10 @@ import cats.Monad
 import cats.implicits._
 import fs2._
 
+/**
+  * FSM describes a set of finite state machines. 
+  * Each machine in the set is uniquely identified by the InstanceId.
+  */
 trait FSM[F[_], InstanceId, State, In, Out] {
   def batch(instance: InstanceId): (Option[State], Chunk[In]) => F[(Option[State], Chunk[Out])]
 }

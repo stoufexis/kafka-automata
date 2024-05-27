@@ -32,7 +32,7 @@ object VoteFSM {
 
       } yield (state, Output.both(event, update))
 
-    def fold(item: ItemId): (Option[Votes], VoteCommand) => F[(Option[Votes], Chunk[Output])] = {
+    def fsm(item: ItemId): (Option[Votes], VoteCommand) => F[(Option[Votes], Chunk[Output])] = {
       // Input validation: check if someone sent us badly keyed data.
       // This could be avoided if VoteCommand did not also contain itemId, but we opt for this currently.
       case (state, cmd: VoteCommand) if cmd.itemId != item =>
@@ -74,6 +74,6 @@ object VoteFSM {
         execute(Some(st downvote cmd.userId), cmd)
     }
 
-    FSM.unbatched(fold)
+    FSM.unbatched(fsm)
   }
 }
