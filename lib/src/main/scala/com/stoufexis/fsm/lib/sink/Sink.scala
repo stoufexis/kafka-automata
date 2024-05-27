@@ -22,13 +22,23 @@ trait Sink[F[_], InstanceId, State, Out] {
   /** @param inputPartition
     * @return
     *   A sink for the given input partition. Along with the usual failure reasons, the resulting
-    *   stream will fail in case of a failure to deserialize a state snapshot
+    *   stream will fail in case of a failure to deserialize a state snapshot. This is considered an
+    *   unrecoverable state.
     */
   def forPartition(inputPartition: TopicPartition): Stream[F, ForPartition]
 }
 
 object Sink {
 
+  /** @param producerConfig
+    * @param consumeStateConfig
+    * @param stateTopic
+    *   Assumed to be a compacted topic
+    * @param stateTopicPartitions
+    * @param toRecords
+    * @param log
+    * @return
+    */
   def fromKafka[
     F[_]:       Async,
     InstanceId: Serializer[F, *]: Deserializer[F, *],
@@ -59,11 +69,32 @@ object Sink {
     ): Stream[F, TransactionalKafkaProducer[F, Array[Byte], Array[Byte]]] =
       producerConfig.makeProducer(topicPartition.toString)
 
-    // fails if theres a deserialization error
+    /** Reads the partition of the state topic where the states for the input topic partition are
+      * emitted. It then rebuilds the state map by keeping the latest snapshot for each InstanceId.
+      * This assumes that the state topic is compacted.
+      */
     def compileLatestState(topicPartition: TopicPartition): Stream[F, Map[InstanceId, S]] = {
       val mappedTp: TopicPartition =
         mappedTopicPartition(topicPartition)
 
+      /*
+        This code has the following bug:
+
+        When calling `offsetsForTimes`, if the offset returned is a tombstone record, it may
+        be removed before we are finished reading the entire topic, since this is a compacted topic.
+        In that case we are waiting for another record to come into the partition, which may or may not happen soon.
+
+        Proposed solution:
+
+        Instead of trying to figure out the point we should stop reading by looking at the end of the
+        topic first, we can immediatelly produce a "marker" record into the partition we are reading from,
+        which will naturally position it at the point that we should stop reading.
+        Then, if we also make this record uniquely identifieble, we can read the state topic
+        up to this "marker" and stop.
+
+        We can even mark this record for deletion by emitting a tombstone record for it afterwards,
+        thus keeping the topic clean.
+       */
       for {
         // generate a random groupId, since we don't want
         // this to be part of a consumer group
